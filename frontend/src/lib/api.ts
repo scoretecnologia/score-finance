@@ -33,7 +33,7 @@ import type {
 } from '@/types'
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: '/_/backend/api',
 })
 
 api.interceptors.request.use((config) => {
