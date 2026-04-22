@@ -35,7 +35,9 @@ function formatCompact(value: number, currency = 'USD', locale = 'en-US') {
     currency,
     notation: 'compact',
     maximumFractionDigits: 1,
-  }
+  }).format(value)
+}
+
 
 const RANGE_OPTIONS = [
   { key: '6m', months: 6 },

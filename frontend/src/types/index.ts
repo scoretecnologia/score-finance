@@ -6,6 +6,7 @@ export interface User {
   is_verified: boolean
   is_2fa_enabled: boolean
   preferences: UserPreferences
+  name?: string
 }
 
 export interface AdminUser {
@@ -15,6 +16,7 @@ export interface AdminUser {
   is_superuser: boolean
   is_verified: boolean
   preferences: UserPreferences | null
+  name?: string
 }
 
 export interface AdminUserList {

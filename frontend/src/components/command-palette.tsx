@@ -213,7 +213,7 @@ function saveRecent(item: RecentItem) {
 // Amount formatting helper
 // ---------------------------------------------------------------------------
 
-function formatHitAmount(amount: number | null, currency: string | null, locale: string): string | null {
+function formatHitAmount(amount: number | null, _currency: string | null, _locale: string): string | null {
   if (amount === null || amount === undefined) return null
   try {
     return new Intl.NumberFormat('pt-BR', {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/auth-context'
 import { setup, admin as adminApi } from '@/lib/api'
@@ -18,7 +18,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [registrationEnabled, setRegistrationEnabled] = useState(true)
+  const [_registrationEnabled, setRegistrationEnabled] = useState(true)
 
   // 2FA state
   const [requires2fa, setRequires2fa] = useState(false)

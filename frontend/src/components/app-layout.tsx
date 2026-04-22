@@ -53,7 +53,6 @@ import {
   Shield,
   ShieldCheck,
   ChevronsUpDown,
-  Plus,
   Search,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
@@ -94,8 +93,6 @@ export function AppLayout() {
   const { t, i18n } = useTranslation()
   const { user, logout, updateUser } = useAuth()
   const { companies: companiesList, currentCompany, switchCompany } = useCompany()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
-  const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { theme, setTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -139,7 +136,7 @@ export function AppLayout() {
   })
 
   const allAccounts = accountsList ?? []
-  const totalBalance = allAccounts.reduce((sum, a) => {
+  allAccounts.reduce((sum, a) => {
     return sum + Number(a.balance_primary ?? a.current_balance)
   }, 0)
 
