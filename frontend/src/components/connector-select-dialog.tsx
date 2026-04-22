@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { connections } from '@/lib/api'
 import {
@@ -25,20 +26,11 @@ interface ConnectorSelectDialogProps {
 
 export function ConnectorSelectDialog({ open, onClose, onSelect }: ConnectorSelectDialogProps) {
   const { t } = useTranslation()
-  const [providers, setProviders] = useState<Provider[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    if (!open) return
-    setLoading(true)
-    connections.getProviders().then((data) => {
-      setProviders(data)
-      setLoading(false)
-    }).catch(() => {
-      setProviders([])
-      setLoading(false)
-    })
-  }, [open])
+  const { data: providers = [], isLoading: loading } = useQuery({
+    queryKey: ['providers'],
+    queryFn: connections.getProviders,
+    enabled: open,
+  })
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>

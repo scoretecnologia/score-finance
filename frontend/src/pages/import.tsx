@@ -145,7 +145,7 @@ export default function ImportPage() {
       options.outflow_column = csvOutflowColumn
     }
     previewMutation.mutate({ file: currentFile, options })
-  }, [currentFile, csvDateFormat, csvFlipAmount, csvSplitColumns, csvInflowColumn, csvOutflowColumn])
+  }, [currentFile, csvDateFormat, csvFlipAmount, csvSplitColumns, csvInflowColumn, csvOutflowColumn, previewMutation])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

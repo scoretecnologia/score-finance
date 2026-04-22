@@ -30,15 +30,8 @@ export function ConnectionSettingsDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
-  const [payeeSource, setPayeeSource] = useState<PayeeSource>('auto')
-  const [importPending, setImportPending] = useState(true)
-
-  useEffect(() => {
-    if (connection) {
-      setPayeeSource(connection.settings?.payee_source ?? 'auto')
-      setImportPending(connection.settings?.import_pending ?? true)
-    }
-  }, [connection])
+  const [payeeSource, setPayeeSource] = useState<PayeeSource>(connection?.settings?.payee_source ?? 'auto')
+  const [importPending, setImportPending] = useState(connection?.settings?.import_pending ?? true)
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -55,7 +48,7 @@ export function ConnectionSettingsDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onClose} key={connection?.id || 'none'}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('connections.settings')}</DialogTitle>

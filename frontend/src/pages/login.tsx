@@ -18,7 +18,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [_registrationEnabled, setRegistrationEnabled] = useState(true)
 
   // 2FA state
   const [requires2fa, setRequires2fa] = useState(false)
@@ -35,9 +34,7 @@ export default function LoginPage() {
         navigate('/setup', { replace: true })
       }
     }).catch(() => {})
-    adminApi.registrationStatus().then(({ enabled }) => {
-      setRegistrationEnabled(enabled)
-    }).catch(() => {})
+    adminApi.registrationStatus().catch(() => {})
   }, [navigate, token])
 
   const handleSubmit = async (e: React.FormEvent) => {

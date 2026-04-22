@@ -48,7 +48,7 @@ export function BankConnectDialog({
     fetchToken()
 
     return () => { cancelled = true }
-  }, [open, reconnectConnectionId, provider])
+  }, [open, reconnectConnectionId, provider, onClose, t])
 
   const handleSuccess = async (data: { item: { id: string } }) => {
     try {
