@@ -1,0 +1,35 @@
+import uuid
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import DateTime, ForeignKey, JSON, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.company import Company
+    from app.models.user import User
+    from app.models.account import Account
+
+
+class BankConnection(Base):
+    __tablename__ = "bank_connections"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"))
+    # Mantemos user_id para rastrear quem conectou o banco
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    provider: Mapped[str] = mapped_column(String(50))  # "pluggy", "belvo", etc.
+    external_id: Mapped[str] = mapped_column(String(255))  # Provider's item ID
+    institution_name: Mapped[str] = mapped_column(String(255))
+    credentials: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Encrypted tokens
+    settings: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
+    status: Mapped[str] = mapped_column(String(50), default="active")  # active, error, expired
+    last_sync_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    company: Mapped["Company"] = relationship()
+    user: Mapped["User"] = relationship(back_populates="bank_connections")
+    accounts: Mapped[list["Account"]] = relationship(back_populates="connection", cascade="all, delete-orphan")
