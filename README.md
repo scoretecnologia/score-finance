@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logo.svg" width="200" alt="Score Finance logo" />
+  <img src="https://qvavpbhunmwfjrrgoifv.supabase.co/storage/v1/object/public/utils/logo_verde.png" width="200" alt="Score Finance logo" />
 </p>
 <h1 align="center">Score Finance</h1>
 <p align="center">
