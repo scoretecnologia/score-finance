@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { connections } from '@/lib/api'
@@ -10,13 +9,6 @@ import {
 } from '@/components/ui/dialog'
 import { Building2 } from 'lucide-react'
 
-interface Provider {
-  name: string
-  display_name: string
-  description: string
-  flow_type: string
-  configured: boolean
-}
 
 interface ConnectorSelectDialogProps {
   open: boolean
