@@ -23,7 +23,7 @@ class CategoryUpdate(BaseModel):
 
 class CategoryRead(CategoryBase):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     group_id: Optional[uuid.UUID] = None
     is_system: bool
 

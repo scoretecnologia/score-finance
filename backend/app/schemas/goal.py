@@ -59,7 +59,7 @@ class GoalUpdate(BaseModel):
 
 class GoalRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     target_amount: Decimal
     current_amount: Decimal

@@ -23,7 +23,7 @@ class PayeeUpdate(BaseModel):
 
 class PayeeRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     type: str
     is_favorite: bool

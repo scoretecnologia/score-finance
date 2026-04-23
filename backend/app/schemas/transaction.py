@@ -45,7 +45,7 @@ class TransactionUpdate(BaseModel):
 
 class TransactionRead(TransactionBase):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     account_id: Optional[uuid.UUID] = None
     category_id: Optional[uuid.UUID] = None
     category: Optional[CategoryRead] = None

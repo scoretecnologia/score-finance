@@ -43,7 +43,7 @@ class AccountUpdate(BaseModel):
 
 class AccountRead(AccountBase):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     connection_id: Optional[uuid.UUID] = None
     external_id: Optional[str] = None
     display_name: Optional[str] = None

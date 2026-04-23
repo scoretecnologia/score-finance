@@ -36,7 +36,7 @@ class RuleUpdate(BaseModel):
 
 class RuleRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     conditions_op: str
     conditions: list[dict]

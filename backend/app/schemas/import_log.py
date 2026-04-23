@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 
 class ImportLogRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     account_id: uuid.UUID
     account_name: Optional[str] = None
     filename: str

@@ -45,7 +45,7 @@ class AssetUpdate(BaseModel):
 
 class AssetRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     name: str
     type: str
     currency: str

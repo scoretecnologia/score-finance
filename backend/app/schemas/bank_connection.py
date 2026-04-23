@@ -12,7 +12,7 @@ class BankConnectionBase(BaseModel):
 
 class BankConnectionRead(BankConnectionBase):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     external_id: str
     settings: Optional[dict] = None
     status: str

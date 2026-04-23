@@ -20,7 +20,7 @@ class BudgetUpdate(BaseModel):
 
 class BudgetRead(BaseModel):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     category_id: uuid.UUID
     amount: Decimal
     month: _Date

@@ -26,7 +26,7 @@ class CategoryGroupUpdate(BaseModel):
 
 class CategoryGroupRead(CategoryGroupBase):
     id: uuid.UUID
-    user_id: uuid.UUID
+    company_id: uuid.UUID
     is_system: bool
     categories: list[CategoryRead] = []
 
