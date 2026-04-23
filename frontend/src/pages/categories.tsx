@@ -50,6 +50,7 @@ export default function CategoriesPage() {
   const [groupFormIcon, setGroupFormIcon] = useState('folder')
   const [groupFormColor, setGroupFormColor] = useState('#6B7280')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'group', id: string, name: string } | null>(null)
 
   const { data: groups } = useQuery({
     queryKey: ['category-groups'],
@@ -137,8 +138,7 @@ export default function CategoriesPage() {
         {!cat.is_system && (
           <button
             className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-            onClick={() => deleteCatMutation.mutate(cat.id)}
-            disabled={deleteCatMutation.isPending}
+            onClick={() => setDeleteConfirm({ type: 'category', id: cat.id, name: cat.name })}
             title={t('common.delete')}
           >
             <Trash2 size={13} />
@@ -209,8 +209,7 @@ export default function CategoriesPage() {
                     {!group.is_system && (
                       <button
                         className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                        onClick={() => deleteGroupMutation.mutate(group.id)}
-                        disabled={deleteGroupMutation.isPending}
+                        onClick={() => setDeleteConfirm({ type: 'group', id: group.id, name: group.name })}
                         title={t('common.delete')}
                       >
                         <Trash2 size={13} />
@@ -343,6 +342,45 @@ export default function CategoriesPage() {
               <Button type="submit">{t('common.save')}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirm} onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteConfirm?.type === 'category' ? t('categories.deleteConfirmTitle', 'Excluir Categoria') : t('groups.deleteConfirmTitle', 'Excluir Grupo')}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground">
+              {t('common.deleteConfirmation', 'Tem certeza que deseja excluir:')} <span className="font-semibold text-foreground">{deleteConfirm?.name}</span>?
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteCatMutation.isPending || deleteGroupMutation.isPending}
+              onClick={() => {
+                if (!deleteConfirm) return
+                if (deleteConfirm.type === 'category') {
+                  deleteCatMutation.mutate(deleteConfirm.id, {
+                    onSuccess: () => setDeleteConfirm(null)
+                  })
+                } else {
+                  deleteGroupMutation.mutate(deleteConfirm.id, {
+                    onSuccess: () => setDeleteConfirm(null)
+                  })
+                }
+              }}
+            >
+              {t('common.confirmDelete', 'Excluir')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
