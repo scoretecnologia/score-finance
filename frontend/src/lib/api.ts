@@ -360,6 +360,8 @@ export const transactions = {
     account_ids?: string[]
     category_id?: string
     category_ids?: string[]
+    chart_account_id?: string
+    chart_account_ids?: string[]
     uncategorized?: boolean
     type?: string
     from?: string

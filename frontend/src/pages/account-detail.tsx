@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, addDays, addMonths, parseISO } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
-import { accounts, transactions, categories as categoriesApi } from '@/lib/api'
+import { accounts, transactions } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import type { Transaction } from '@/types'
@@ -337,10 +337,7 @@ export default function AccountDetailPage() {
     enabled: !!id,
   })
 
-  const { data: categoriesList } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.list,
-  })
+
 
   const updateMutation = useMutation({
     mutationFn: ({ id: txId, ...data }: Partial<Transaction> & { id: string }) =>
@@ -1181,7 +1178,6 @@ export default function AccountDetailPage() {
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditingTx(null) }}
         transaction={editingTx}
-        categories={categoriesList ?? []}
         accounts={accountsList ?? []}
         onSave={(data) => {
           if (editingTx) {
@@ -1317,3 +1313,4 @@ function CreditCardSettingsDialog({
     </Dialog>
   )
 }
+

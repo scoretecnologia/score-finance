@@ -63,7 +63,7 @@ export function TransactionDialog({
   open,
   onClose,
   transaction,
-  categories,
+  
   accounts,
   recurringMatch,
   onSave,
@@ -78,7 +78,6 @@ export function TransactionDialog({
   open: boolean
   onClose: () => void
   transaction: Transaction | null
-  categories: { id: string; name: string; icon: string }[]
   accounts: { id: string; name: string }[]
   recurringMatch?: RecurringTransaction
   onSave: (data: Partial<Transaction>, recurringData?: { frequency: string; end_date?: string }, pendingFiles?: File[], action?: SaveAction) => void
@@ -147,7 +146,6 @@ export function TransactionDialog({
               key={transaction?.id ?? `new-${formResetKey}`}
               transaction={transaction}
               duplicateDraft={duplicateDraft}
-              categories={categories}
               accounts={accounts}
               recurringMatch={recurringMatch}
               onSave={onSave}
@@ -262,7 +260,6 @@ export function TransactionDialog({
 function TransactionForm({
   transaction,
   duplicateDraft,
-  categories,
   accounts,
   recurringMatch,
   onSave,
@@ -278,7 +275,6 @@ function TransactionForm({
 }: {
   transaction: Transaction | null
   duplicateDraft: Partial<Transaction> | null
-  categories: { id: string; name: string; icon: string }[]
   accounts: { id: string; name: string }[]
   recurringMatch?: RecurringTransaction
   onSave: (data: Partial<Transaction>, recurringData?: { frequency: string; end_date?: string }, pendingFiles?: File[], action?: SaveAction) => void

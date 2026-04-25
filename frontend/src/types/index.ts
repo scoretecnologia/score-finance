@@ -300,6 +300,7 @@ export interface Budget {
 
 export interface BudgetVsActual {
   category_id: string
+  chart_account_id: string | null
   category_name: string
   category_icon: string
   category_color: string

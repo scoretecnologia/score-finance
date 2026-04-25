@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { categories as categoriesApi, rules as rulesApi, accounts as accountsApi, payees as payeesApi } from '@/lib/api'
+import { chartAccounts as chartAccountsApi, rules as rulesApi, accounts as accountsApi, payees as payeesApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import type { Category, Payee, Rule, RuleCondition, RuleAction } from '@/types'
+import type { ChartAccount, Payee, Rule, RuleCondition, RuleAction } from '@/types'
 import { Trash2, Plus, RefreshCw, X, Package, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
@@ -84,11 +84,11 @@ function conditionSummary(conditions: RuleCondition[], conditionsOp: string, t: 
   return parts.join(` ${conditionsOp === 'or' ? t('rules.orOp') : t('rules.andOp')} `) || t('rules.noConditions')
 }
 
-function actionSummary(actions: RuleAction[], categories: Category[], payeesList: Payee[], t: (key: string) => string): string {
+function actionSummary(actions: RuleAction[], chartAccounts: ChartAccount[], payeesList: Payee[], t: (key: string) => string): string {
   return actions.map(a => {
     if (a.op === 'set_category') {
-      const cat = categories.find(c => c.id === a.value)
-      return cat ? `→ ${cat.name}` : `→ ${t('transactions.category')}`
+      const acc = chartAccounts.find(c => c.id === a.value)
+      return acc ? `→ ${acc.name}` : `→ ${t('transactions.category')}`
     }
     if (a.op === 'set_payee') {
       const p = payeesList.find(p => p.id === a.value)
@@ -106,15 +106,12 @@ export default function RulesPage() {
   const [packsDialogOpen, setPacksDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Rule | null>(null)
 
-  const { data: rulesList } = useQuery({
-    queryKey: ['rules'],
-    queryFn: rulesApi.list,
+  const { data: chartAccountsList } = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: chartAccountsApi.list,
   })
 
-  const { data: categoriesList } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.list,
-  })
+
 
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
@@ -181,7 +178,12 @@ export default function RulesPage() {
     onError: () => toast.error(t('common.error')),
   })
 
-  const categories = categoriesList ?? []
+  const { data: rulesList } = useQuery({
+    queryKey: ['rules'],
+    queryFn: rulesApi.list,
+  })
+
+  const chartAccounts = chartAccountsList ?? []
   const payees = payeesList ?? []
 
   const [sortBy, setSortBy] = useState<'priority' | 'name' | 'category'>('priority')
@@ -197,13 +199,13 @@ export default function RulesPage() {
       const getCategoryName = (rule: Rule) => {
         const action = rule.actions.find(a => a.op === 'set_category')
         if (!action) return ''
-        const cat = categories.find(c => c.id === action.value)
-        return cat?.name ?? ''
+        const acc = chartAccounts.find(c => c.id === action.value)
+        return acc?.name ?? ''
       }
       return list.sort((a, b) => dir * getCategoryName(a).localeCompare(getCategoryName(b)))
     }
     return list.sort((a, b) => dir * (a.priority - b.priority))
-  }, [rulesList, categories, sortBy, sortDir])
+  }, [rulesList, chartAccounts, sortBy, sortDir])
 
   return (
     <div>
@@ -287,7 +289,7 @@ export default function RulesPage() {
                       {conditionSummary(rule.conditions, rule.conditions_op, t)}
                     </p>
                     <p className="text-xs text-emerald-600 font-medium mt-0.5">
-                      {actionSummary(rule.actions, categories, payees, t)}
+                      {actionSummary(rule.actions, chartAccounts, payees, t)}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -318,7 +320,7 @@ export default function RulesPage() {
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null) }}
         rule={editing}
-        categories={categories}
+        
         accounts={accountsList ?? []}
         payees={payees}
         onSave={(data) => {
@@ -403,12 +405,12 @@ function RulePacksDialog({ open, onClose }: { open: boolean; onClose: () => void
 }
 
 function RuleDialog({
-  open, onClose, rule, categories, accounts, payees, onSave, loading,
+  open, onClose, rule, accounts, payees, onSave, loading,
 }: {
   open: boolean
   onClose: () => void
   rule: Rule | null
-  categories: Category[]
+  
   accounts: { id: string; name: string }[]
   payees: Payee[]
   onSave: (data: Partial<Rule>) => void
@@ -647,3 +649,4 @@ function RuleDialog({
     </Dialog>
   )
 }
+

@@ -143,12 +143,6 @@ export function TransactionsFilterBar({
     return map
   }, [chartAccounts])
 
-  const categoryById = useMemo(() => {
-    const map = new Map<string, Category>()
-    categories.forEach((c) => map.set(c.id, c))
-    return map
-  }, [categories])
-
   const selectedPayee = useMemo(
     () => payees.find((p) => p.id === filterPayee),
     [payees, filterPayee],
@@ -650,7 +644,7 @@ export function TransactionsFilterBar({
 
         {/* Bottom row: active filter chips (only when any are set) */}
         {(filterAccountIds.length > 0 ||
-          filterCategoryIds.length > 0 ||
+          filterChartAccountIds.length > 0 ||
           filterUncategorized ||
           !!selectedPayee ||
           !!dateLabel) && (

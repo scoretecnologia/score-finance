@@ -536,7 +536,7 @@ export default function CategoriesPage() {
           else deleteAccountMutation.mutate(deleteConfirm.id)
           setDeleteConfirm(null)
         }}
-        onCancel={() => setDeleteConfirm(null)}
+        onClose={() => setDeleteConfirm(null)}
         variant="destructive"
       />
     </div>

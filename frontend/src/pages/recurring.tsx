@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { categories as categoriesApi, recurring as recurringApi, accounts as accountsApi, currencies as currenciesApi } from '@/lib/api'
+import { recurring as recurringApi, accounts as accountsApi, currencies as currenciesApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import type { Category, RecurringTransaction } from '@/types'
+import type { RecurringTransaction } from '@/types'
 import { Pencil, Trash2, Plus, RefreshCw, Info } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
@@ -73,10 +73,7 @@ function RecurringTab() {
     queryFn: recurringApi.list,
   })
 
-  const { data: categoriesList } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.list,
-  })
+
 
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
@@ -233,7 +230,6 @@ function RecurringTab() {
           <RecurringForm
             key={editing?.id ?? 'new'}
             recurring={editing}
-            categories={categoriesList ?? []}
             accounts={accountsList ?? []}
             onSave={(data) => {
               if (editing) {
@@ -253,14 +249,13 @@ function RecurringTab() {
 
 function RecurringForm({
   recurring,
-  categories,
   accounts,
   onSave,
   onCancel,
   loading,
 }: {
   recurring: RecurringTransaction | null
-  categories: Category[]
+  
   accounts: { id: string; name: string }[]
   onSave: (data: Partial<RecurringTransaction>) => void
   onCancel: () => void
@@ -403,4 +398,5 @@ function RecurringForm({
     </form>
   )
 }
+
 

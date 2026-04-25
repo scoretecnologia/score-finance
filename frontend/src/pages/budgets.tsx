@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { categories as categoriesApi, categoryGroups as groupsApi, budgets as budgetsApi } from '@/lib/api'
+import { chartAccounts as accountsApi, budgets as budgetsApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -71,14 +71,9 @@ export default function BudgetsPage() {
     queryFn: () => budgetsApi.list(monthParam),
   })
 
-  const { data: categoriesList } = useQuery({
-    queryKey: ['categories'],
-    queryFn: categoriesApi.list,
-  })
-
-  const { data: groupsList } = useQuery({
-    queryKey: ['category-groups'],
-    queryFn: groupsApi.list,
+  const { data: chartAccountsList } = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: accountsApi.list,
   })
 
   const createMutation = useMutation({
@@ -112,15 +107,17 @@ export default function BudgetsPage() {
     },
   })
 
-  const getCategoryDisplay = (categoryId: string) => {
-    const cat = categoriesList?.find((c) => c.id === categoryId)
-    if (!cat) return <span>{categoryId}</span>
-    return (
-      <span className="flex items-center gap-2">
-        <CategoryIcon icon={cat.icon} color={cat.color} size="sm" />
-        <span>{cat.name}</span>
-      </span>
-    )
+  const getCategoryDisplay = (id: string) => {
+    const acc = chartAccountsList?.find((c) => c.id === id)
+    if (acc) {
+      return (
+        <span className="flex items-center gap-2">
+          <CategoryIcon icon={acc.icon || 'HelpCircle'} color={acc.color || '#888'} size="sm" />
+          <span>{acc.name}</span>
+        </span>
+      )
+    }
+    return <span>{id}</span>
   }
 
   const monthTitle = new Date(selectedMonth + '-02').toLocaleDateString(locale, { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())

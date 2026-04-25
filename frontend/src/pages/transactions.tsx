@@ -98,7 +98,7 @@ export default function TransactionsPage() {
   // Clear selection on page/filter change
   useEffect(() => {
     setSelectedIds(new Set())
-    setBulkCategory('')
+    setBulkChartAccount('')
   }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery])
 
   // Scroll to and flash a highlighted row after navigation (e.g. opened via
@@ -138,6 +138,8 @@ export default function TransactionsPage() {
       }),
   })
 
+
+
   const { data: categoriesList } = useQuery({
     queryKey: ['categories'],
     queryFn: categoriesApi.list,
@@ -156,6 +158,16 @@ export default function TransactionsPage() {
   const { data: recurringList } = useQuery({
     queryKey: ['recurring'],
     queryFn: recurring.list,
+  })
+
+  const { data: groupsList } = useQuery({
+    queryKey: ['category-groups'],
+    queryFn: categoryGroups.list,
+  })
+
+  const { data: chartAccountsList } = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: chartAccounts.list,
   })
 
   const { data: accountingModeData } = useQuery({
@@ -409,7 +421,7 @@ export default function TransactionsPage() {
         filterAccountIds={filterAccountIds}
         onAccountIdsChange={(v) => { setFilterAccountIds(v); setPage(1) }}
         filterChartAccountIds={filterChartAccountIds}
-        onCategoryIdsChange={(v) => { setFilterChartAccountIds(v); setPage(1) }}
+        onChartAccountIdsChange={(v) => { setFilterChartAccountIds(v); setPage(1) }}
         filterUncategorized={filterUncategorized}
         onUncategorizedChange={(v) => { setFilterUncategorized(v); setPage(1) }}
         filterPayee={filterPayee}
@@ -430,6 +442,8 @@ export default function TransactionsPage() {
         }}
         accounts={accountsList ?? []}
         categories={categoriesList ?? []}
+        groups={groupsList ?? []}
+        chartAccounts={chartAccountsList ?? []}
         payees={payeesList ?? []}
       />
       {tagFilter && (
@@ -697,7 +711,6 @@ export default function TransactionsPage() {
         transaction={editingTx}
         duplicateDraft={duplicateDraft}
         formResetKey={formResetKey}
-        categories={categoriesList ?? []}
         accounts={accountsList ?? []}
         recurringMatch={editingTx ? recurringList?.find(r => r.description === editingTx.description && r.type === editingTx.type) : undefined}
         onSave={(data, recurringData, pendingFiles, action) => {
@@ -716,9 +729,6 @@ export default function TransactionsPage() {
     </div>
   )
 }
-
-
-
 
 
 
