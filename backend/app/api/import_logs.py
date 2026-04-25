@@ -24,14 +24,14 @@ async def list_import_logs(
     result = await session.execute(
         select(ImportLog)
         .options(joinedload(ImportLog.account))
-        .where(ImportLog.user_id == company.id)
+        .where(ImportLog.company_id == company.id)
         .order_by(ImportLog.created_at.desc())
     )
     logs = result.scalars().unique().all()
     return [
         ImportLogRead(
             id=log.id,
-            user_id=log.user_id,
+            company_id=log.company_id,
             account_id=log.account_id,
             account_name=log.account.name if log.account else None,
             filename=log.filename,
@@ -56,7 +56,7 @@ async def delete_import_log(
     log_id = _uuid.UUID(import_log_id)
 
     result = await session.execute(
-        select(ImportLog).where(ImportLog.id == log_id, ImportLog.user_id == company.id)
+        select(ImportLog).where(ImportLog.id == log_id, ImportLog.company_id == company.id)
     )
     log = result.scalar_one_or_none()
     if not log:

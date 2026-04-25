@@ -341,7 +341,7 @@ def parse_csv(
 
 async def import_transactions(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    company_id: uuid.UUID,
     account_id: uuid.UUID,
     transactions: list[TransactionBase],
     source: str,
@@ -357,7 +357,7 @@ async def import_transactions(
 
     # Create import log first to get its ID
     import_log = ImportLog(
-        user_id=user_id,
+        company_id=company_id,
         account_id=account_id,
         filename=filename,
         format=detected_format,
@@ -408,11 +408,11 @@ async def import_transactions(
         import_payee_id = None
         import_payee_raw = getattr(txn_data, "payee_raw", None)
         if import_payee_raw:
-            import_payee_entity = await get_or_create_payee(session, user_id, import_payee_raw)
+            import_payee_entity = await get_or_create_payee(session, company_id, import_payee_raw)
             import_payee_id = import_payee_entity.id
 
         transaction = Transaction(
-            user_id=user_id,
+            company_id=company_id,
             account_id=account_id,
             description=txn_data.description,
             amount=txn_data.amount,
@@ -434,11 +434,11 @@ async def import_transactions(
 
         session.add(transaction)
         await session.flush()
-        await apply_rules_to_transaction(session, user_id, transaction)
+        await apply_rules_to_transaction(session, company_id, transaction)
 
         # Only auto-convert if no fx_rate was provided by the CSV
         if not txn_data.fx_rate:
-            await stamp_primary_amount(session, user_id, transaction)
+            await stamp_primary_amount(session, company_id, transaction)
 
         imported += 1
 
