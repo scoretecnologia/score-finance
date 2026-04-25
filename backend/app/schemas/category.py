@@ -3,11 +3,14 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.chart_account import ChartAccountRead
+
 
 class CategoryBase(BaseModel):
     name: str
     icon: str = "circle-help"
     color: str = "#6B7280"
+    is_synthetic: bool = False
 
 
 class CategoryCreate(CategoryBase):
@@ -26,5 +29,6 @@ class CategoryRead(CategoryBase):
     company_id: uuid.UUID
     group_id: Optional[uuid.UUID] = None
     is_system: bool
+    chart_accounts: list[ChartAccountRead] = []
 
     model_config = ConfigDict(from_attributes=True)

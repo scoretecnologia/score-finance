@@ -27,6 +27,7 @@ import { TransactionAttachments } from '@/components/transaction-attachments'
 import type { AttachmentPreview } from '@/components/transaction-attachments'
 import type { Transaction, RecurringTransaction } from '@/types'
 import { toast } from 'sonner'
+import { ChartAccountSelect } from '@/components/chart-account-select'
 
 export type SaveAction = 'save' | 'saveAndNew' | 'saveAndDuplicate'
 
@@ -310,7 +311,7 @@ function TransactionForm({
   const [date, setDate] = useState(seed?.date ?? new Date().toISOString().split('T')[0])
   const [type, setType] = useState<'debit' | 'credit'>(seed?.type ?? 'debit')
   const [currency, setCurrency] = useState(seed?.currency ?? userCurrency)
-  const [categoryId, setCategoryId] = useState(seed?.category_id ?? '')
+  const [chartAccountId, setChartAccountId] = useState(seed?.chart_account_id ?? '')
   const [payeeId, setPayeeId] = useState(seed?.payee_id ?? '')
   const [accountId, setAccountId] = useState(seed?.account_id ?? accounts[0]?.id ?? '')
   const [notes, setNotes] = useState(seed?.notes ?? '')
@@ -432,7 +433,7 @@ function TransactionForm({
         }
         const txData = isSynced
           ? {
-              category_id: categoryId || null,
+              chart_account_id: chartAccountId || null,
               payee_id: payeeId || null,
               notes: notes.trim() || null,
             } as Partial<Transaction>
@@ -442,7 +443,7 @@ function TransactionForm({
               date,
               type,
               currency,
-              category_id: categoryId || null,
+              chart_account_id: chartAccountId || null,
               payee_id: payeeId || null,
               account_id: accountId || undefined,
               notes: notes.trim() || null,
@@ -602,17 +603,11 @@ function TransactionForm({
         </div>
         <div className="space-y-2">
           <Label>{t('transactions.category')}</Label>
-          <select
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
+          <ChartAccountSelect
+            value={chartAccountId}
+            onChange={(e) => setChartAccountId(e.target.value)}
             disabled={!!transaction?.transfer_pair_id}
-          >
-            <option value="">{t('transactions.noCategory')}</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
+          />
         </div>
       </div>
       <div className={cn("grid gap-4", isSynced ? "grid-cols-1" : "grid-cols-2")}>

@@ -12,6 +12,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.account import Account
     from app.models.category import Category
+    from app.models.chart_account import ChartAccount
     from app.models.company import Company
     from app.models.import_log import ImportLog
     from app.models.payee import Payee
@@ -25,6 +26,7 @@ class Transaction(Base):
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"))
     account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=False)
     category_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
+    chart_account_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("chart_accounts.id"), nullable=True)
     external_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)  # Provider's transaction ID
     description: Mapped[str] = mapped_column(String(500))
     amount: Mapped[Decimal] = mapped_column(Numeric(precision=15, scale=2))
@@ -61,6 +63,7 @@ class Transaction(Base):
     company: Mapped["Company"] = relationship()
     account: Mapped["Account"] = relationship(back_populates="transactions")
     category: Mapped[Optional["Category"]] = relationship()
+    chart_account: Mapped[Optional["ChartAccount"]] = relationship()
     payee_entity: Mapped[Optional["Payee"]] = relationship(back_populates="transactions")
     import_log: Mapped[Optional["ImportLog"]] = relationship(back_populates="transactions")
     attachments: Mapped[list["TransactionAttachment"]] = relationship(

@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.category import CategoryRead
+from app.schemas.chart_account import ChartAccountRead
 
 
 class TransactionBase(BaseModel):
@@ -22,6 +23,7 @@ class TransactionBase(BaseModel):
 class TransactionCreate(TransactionBase):
     account_id: uuid.UUID
     category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
     payee_id: Optional[uuid.UUID] = None
     currency: Optional[str] = None
     notes: Optional[str] = None
@@ -37,6 +39,7 @@ class TransactionUpdate(BaseModel):
     currency: Optional[str] = None
     account_id: Optional[uuid.UUID] = None
     category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
     payee_id: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     amount_primary: Optional[Decimal] = None
@@ -49,6 +52,8 @@ class TransactionRead(TransactionBase):
     account_id: Optional[uuid.UUID] = None
     category_id: Optional[uuid.UUID] = None
     category: Optional[CategoryRead] = None
+    chart_account_id: Optional[uuid.UUID] = None
+    chart_account: Optional[ChartAccountRead] = None
     currency: str = "USD"
     source: str
     status: str = "posted"
@@ -72,6 +77,7 @@ class TransactionRead(TransactionBase):
 class BulkCategorizeRequest(BaseModel):
     transaction_ids: list[uuid.UUID]
     category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
 
 
 class TransferCreate(BaseModel):

@@ -59,6 +59,7 @@ async def _get_recurring_projections(
         for occ_date in occurrences:
             projections.append({
                 "category_id": rec.category_id,
+                "chart_account_id": rec.chart_account_id,
                 "amount": float(rec.amount),
                 "type": rec.type,
                 "currency": rec.currency,
@@ -263,17 +264,18 @@ async def get_spending_by_category(
 
     # Real transactions grouped by category (exclude transfer pairs and closed accounts)
     # Use amount_primary for multi-currency support
+    from app.models.chart_account import ChartAccount
     result = await session.execute(
         select(
-            Category.id,
-            Category.name,
-            Category.icon,
-            Category.color,
+            ChartAccount.id,
+            ChartAccount.name,
+            ChartAccount.icon,
+            ChartAccount.color,
             func.sum(_primary_amount_expr()),
         )
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
-        .outerjoin(Category, Transaction.category_id == Category.id)
+        .outerjoin(ChartAccount, Transaction.chart_account_id == ChartAccount.id)
         .where(
             Transaction.company_id == company_id,
             Account.is_closed == False,
@@ -282,7 +284,7 @@ async def get_spending_by_category(
             report_date < month_end,
             Transaction.transfer_pair_id.is_(None),
         )
-        .group_by(Category.id, Category.name, Category.icon, Category.color)
+        .group_by(ChartAccount.id, ChartAccount.name, ChartAccount.icon, ChartAccount.color)
         .order_by(func.sum(_primary_amount_expr()).desc())
     )
 
@@ -305,18 +307,18 @@ async def get_spending_by_category(
     for proj in projections:
         if proj["type"] != "debit":
             continue
-        cat_id = str(proj["category_id"]) if proj["category_id"] else None
-        if cat_id and cat_id not in cat_cache:
-            # Fetch category info
-            cat_result = await session.execute(
-                select(Category.name, Category.icon, Category.color)
-                .where(Category.id == proj["category_id"])
+        chart_acc_id = str(proj["chart_account_id"]) if proj.get("chart_account_id") else None
+        if chart_acc_id and chart_acc_id not in cat_cache:
+            # Fetch chart account info
+            ca_result = await session.execute(
+                select(ChartAccount.name, ChartAccount.icon, ChartAccount.color)
+                .where(ChartAccount.id == proj["chart_account_id"])
             )
-            cat_row = cat_result.one_or_none()
-            if cat_row:
-                cat_cache[cat_id] = {"name": cat_row[0], "icon": cat_row[1], "color": cat_row[2]}
+            ca_row = ca_result.one_or_none()
+            if ca_row:
+                cat_cache[chart_acc_id] = {"name": ca_row[0], "icon": ca_row[1], "color": ca_row[2]}
             else:
-                cat_cache[cat_id] = {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"}
+                cat_cache[chart_acc_id] = {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"}
 
         # Convert projection amount to primary currency
         proj_amount, _ = await convert(
@@ -324,11 +326,11 @@ async def get_spending_by_category(
         )
         proj_amount_float = float(proj_amount)
 
-        if cat_id in spending_map:
-            spending_map[cat_id]["total"] += proj_amount_float
+        if chart_acc_id in spending_map:
+            spending_map[chart_acc_id]["total"] += proj_amount_float
         else:
-            info = cat_cache.get(cat_id, {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"})
-            spending_map[cat_id] = {
+            info = cat_cache.get(chart_acc_id, {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"})
+            spending_map[chart_acc_id] = {
                 "name": info["name"],
                 "icon": info["icon"],
                 "color": info["color"],
@@ -338,9 +340,9 @@ async def get_spending_by_category(
     # Convert to list and compute percentages
     grand_total = sum(entry["total"] for entry in spending_map.values())
     spending = []
-    for cat_id, entry in sorted(spending_map.items(), key=lambda x: x[1]["total"], reverse=True):
+    for chart_acc_id, entry in sorted(spending_map.items(), key=lambda x: x[1]["total"], reverse=True):
         spending.append(SpendingByCategory(
-            category_id=cat_id,
+            chart_account_id=chart_acc_id,
             category_name=entry["name"],
             category_icon=entry["icon"],
             category_color=entry["color"],
@@ -413,16 +415,16 @@ async def get_projected_transactions(
     )
     recurring_list = list(result.scalars().all())
 
-    # Pre-fetch categories for all recurring templates that have one
-    cat_ids = {r.category_id for r in recurring_list if r.category_id}
-    cat_map: dict[uuid.UUID, tuple[str, str, str]] = {}
-    if cat_ids:
-        cat_result = await session.execute(
-            select(Category.id, Category.name, Category.icon, Category.color)
-            .where(Category.id.in_(cat_ids))
+    # Pre-fetch chart accounts for all recurring templates that have one
+    ca_ids = {r.chart_account_id for r in recurring_list if r.chart_account_id}
+    ca_map: dict[uuid.UUID, tuple[str, str, str]] = {}
+    if ca_ids:
+        ca_result = await session.execute(
+            select(ChartAccount.id, ChartAccount.name, ChartAccount.icon, ChartAccount.color)
+            .where(ChartAccount.id.in_(ca_ids))
         )
-        for row in cat_result.all():
-            cat_map[row[0]] = (row[1], row[2], row[3])
+        for row in ca_result.all():
+            ca_map[row[0]] = (row[1], row[2], row[3])
 
     projections: list[ProjectedTransaction] = []
     for rec in recurring_list:
@@ -434,7 +436,7 @@ async def get_projected_transactions(
             range_end=month_end,
             intended_day=rec.day_of_month or rec.start_date.day,
         )
-        cat_name, cat_icon, cat_color = cat_map.get(rec.category_id, (None, None, None)) if rec.category_id else (None, None, None)
+        ca_name, ca_icon, ca_color = ca_map.get(rec.chart_account_id, (None, None, None)) if rec.chart_account_id else (None, None, None)
 
         # Convert to primary currency at current rate (consistent with summary)
         amt_primary = None
@@ -453,10 +455,10 @@ async def get_projected_transactions(
                 currency=rec.currency,
                 type=rec.type,
                 date=occ_date.isoformat(),
-                category_id=str(rec.category_id) if rec.category_id else None,
-                category_name=cat_name,
-                category_icon=cat_icon,
-                category_color=cat_color,
+                chart_account_id=str(rec.chart_account_id) if rec.chart_account_id else None,
+                category_name=ca_name,
+                category_icon=ca_icon,
+                category_color=ca_color,
             ))
 
     return projections

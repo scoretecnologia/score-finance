@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/page-header'
 import { DatePickerInput } from '@/components/ui/date-picker-input'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
+import { ChartAccountSelect } from '@/components/chart-account-select'
 
 function formatCurrency(value: number, _currency?: string, _locale?: string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -281,7 +282,7 @@ function RecurringForm({
   const [dayOfMonth, setDayOfMonth] = useState(recurring?.day_of_month?.toString() ?? '')
   const [startDate, setStartDate] = useState(recurring?.start_date ?? new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(recurring?.end_date ?? '')
-  const [categoryId, setCategoryId] = useState(recurring?.category_id ?? '')
+  const [chartAccountId, setChartAccountId] = useState(recurring?.chart_account_id ?? '')
   const [accountId, setAccountId] = useState(recurring?.account_id ?? accounts[0]?.id ?? '')
   const [isActive, setIsActive] = useState(recurring?.is_active ?? true)
 
@@ -300,7 +301,7 @@ function RecurringForm({
           day_of_month: dayOfMonth ? parseInt(dayOfMonth) : null,
           start_date: startDate,
           end_date: endDate || null,
-          category_id: categoryId || null,
+          chart_account_id: chartAccountId || null,
           account_id: accountId || null,
           is_active: isActive,
         } as Partial<RecurringTransaction>)
@@ -361,12 +362,11 @@ function RecurringForm({
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>{t('recurring.category')}</Label>
-          <select className={selectClass} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">{t('transactions.noCategory')}</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
+          <ChartAccountSelect
+            className={selectClass}
+            value={chartAccountId}
+            onChange={(e) => setChartAccountId(e.target.value)}
+          />
         </div>
         <div className="space-y-2">
           <Label>{t('recurring.account')}</Label>
@@ -403,3 +403,4 @@ function RecurringForm({
     </form>
   )
 }
+

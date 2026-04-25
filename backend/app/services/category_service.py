@@ -3,6 +3,7 @@ from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.category import Category
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -52,6 +53,7 @@ async def create_default_categories(session: AsyncSession, company_id: uuid.UUID
             icon=data["icon"],
             color=data["color"],
             is_system=True,
+            is_synthetic=True,
             group_id=group.id if group else None,
         )
         session.add(category)
@@ -62,14 +64,19 @@ async def create_default_categories(session: AsyncSession, company_id: uuid.UUID
 
 async def get_categories(session: AsyncSession, company_id: uuid.UUID) -> list[Category]:
     result = await session.execute(
-        select(Category).where(Category.company_id == company_id).order_by(Category.is_system.desc(), Category.name)
+        select(Category)
+        .where(Category.company_id == company_id)
+        .options(selectinload(Category.chart_accounts))
+        .order_by(Category.is_system.desc(), Category.name)
     )
     return list(result.scalars().all())
 
 
 async def get_category(session: AsyncSession, category_id: uuid.UUID, company_id: uuid.UUID) -> Optional[Category]:
     result = await session.execute(
-        select(Category).where(Category.id == category_id, Category.company_id == company_id)
+        select(Category)
+        .where(Category.id == category_id, Category.company_id == company_id)
+        .options(selectinload(Category.chart_accounts))
     )
     return result.scalar_one_or_none()
 

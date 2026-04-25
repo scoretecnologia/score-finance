@@ -61,6 +61,8 @@ async def get_transactions(
     exclude_transfers: bool = False,
     account_ids: Optional[list[uuid.UUID]] = None,
     category_ids: Optional[list[uuid.UUID]] = None,
+    chart_account_id: Optional[uuid.UUID] = None,
+    chart_account_ids: Optional[list[uuid.UUID]] = None,
     accounting_mode: Optional[str] = None,
 ) -> tuple[list[Transaction], int]:
     # In "accrual" mode, bucket/order by effective_date so list filters
@@ -97,6 +99,10 @@ async def get_transactions(
         base_query = base_query.where(Transaction.category_id.in_(category_ids))
     elif category_id:
         base_query = base_query.where(Transaction.category_id == category_id)
+    if chart_account_ids:
+        base_query = base_query.where(Transaction.chart_account_id.in_(chart_account_ids))
+    elif chart_account_id:
+        base_query = base_query.where(Transaction.chart_account_id == chart_account_id)
     if payee_id:
         base_query = base_query.where(Transaction.payee_id == payee_id)
     if uncategorized:
@@ -207,7 +213,8 @@ async def create_transaction(
     transaction = Transaction(
         company_id=company_id,
         account_id=data.account_id,
-        category_id=data.category_id,  # use provided category if given
+        category_id=data.category_id,
+        chart_account_id=data.chart_account_id,
         payee_id=data.payee_id,
         description=data.description,
         amount=data.amount,
@@ -221,8 +228,8 @@ async def create_transaction(
     session.add(transaction)
     await session.flush()  # get ID without committing
 
-    # Apply rules only if no explicit category provided
-    if not data.category_id:
+    # Apply rules only if no explicit category/chart account provided
+    if not data.category_id and not data.chart_account_id:
         await apply_rules_to_transaction(session, company_id, transaction)
 
     # Stamp primary currency amount (manual override or auto)
@@ -583,14 +590,24 @@ async def bulk_update_category(
     company_id: uuid.UUID,
     transaction_ids: list[uuid.UUID],
     category_id: Optional[uuid.UUID] = None,
+    chart_account_id: Optional[uuid.UUID] = None,
 ) -> int:
+    values = {}
+    if category_id is not None:
+        values["category_id"] = category_id
+    if chart_account_id is not None:
+        values["chart_account_id"] = chart_account_id
+
+    if not values:
+        return 0
+
     result = await session.execute(
         update(Transaction)
         .where(
             Transaction.id.in_(transaction_ids),
             Transaction.company_id == company_id,
         )
-        .values(category_id=category_id)
+        .values(**values)
     )
     await session.commit()
     return result.rowcount

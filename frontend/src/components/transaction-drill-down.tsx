@@ -10,7 +10,7 @@ import type { Transaction } from '@/types'
 
 export type DrillDownFilter = {
   title: string
-  category_id?: string
+  category_id?: string; chart_account_id?: string
   uncategorized?: boolean
   account_id?: string
   type?: 'credit' | 'debit'
@@ -58,7 +58,7 @@ export function TransactionDrillDown({
     queryKey: ['drill-down', filter],
     queryFn: () =>
       transactionsApi.list({
-        category_id: filter?.category_id,
+        category_id: filter?.category_id, chart_account_id: filter?.chart_account_id,
         uncategorized: filter?.uncategorized,
         account_id: filter?.account_id,
         type: filter?.type,
@@ -99,9 +99,9 @@ export function TransactionDrillDown({
         amount: Number(tx.amount),
         amountPrimary: tx.amount_primary != null ? Number(tx.amount_primary) : null,
         currency: tx.currency,
-        categoryIcon: tx.category?.icon ?? null,
-        categoryName: tx.category?.name ?? null,
-        categoryColor: tx.category?.color ?? null,
+        categoryIcon: tx.chart_account?.icon ?? tx.category?.icon ?? null,
+        categoryName: tx.chart_account?.name ?? tx.category?.name ?? null,
+        categoryColor: tx.chart_account?.color ?? tx.category?.color ?? null,
         isProjected: false,
         attachmentCount: tx.attachment_count ?? 0,
         transaction: tx,
@@ -111,8 +111,8 @@ export function TransactionDrillDown({
     for (const pt of projectedTxs ?? []) {
       // Filter projected txs by drill-down criteria
       if (filter?.type && pt.type !== filter.type) continue
-      if (filter?.category_id && String(pt.category_id) !== filter.category_id) continue
-      if (filter?.uncategorized && pt.category_id != null) continue
+      if (filter?.chart_account_id && String(pt.chart_account_id) !== filter.chart_account_id) continue; if (filter?.category_id && String(pt.category_id) !== filter.category_id) continue
+      if (filter?.uncategorized && pt.chart_account_id != null) continue
       if (filter?.from && pt.date < filter.from) continue
       if (filter?.to && pt.date > filter.to) continue
 
@@ -307,3 +307,4 @@ export function TransactionDrillDown({
     </>
   )
 }
+

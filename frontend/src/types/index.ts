@@ -46,6 +46,20 @@ export interface Category {
   icon: string
   color: string
   is_system: boolean
+  is_synthetic: boolean
+  chart_accounts: ChartAccount[]
+}
+
+export interface ChartAccount {
+  id: string
+  company_id: string
+  category_id: string
+  name: string
+  code: string | null
+  icon: string
+  color: string
+  position: number
+  is_system: boolean
 }
 
 export interface CategoryGroup {
@@ -118,6 +132,8 @@ export interface Transaction {
   account_id: string | null
   category_id: string | null
   category: Category | null
+  chart_account_id: string | null
+  chart_account: ChartAccount | null
   external_id: string | null
   description: string
   amount: number
@@ -201,6 +217,7 @@ export interface RecurringTransaction {
   user_id: string
   account_id: string | null
   category_id: string | null
+  chart_account_id: string | null
   description: string
   amount: number
   currency: string
@@ -224,6 +241,7 @@ export interface ProjectedTransaction {
   type: 'debit' | 'credit'
   date: string
   category_id: string | null
+  chart_account_id: string | null
   category_name: string | null
   category_icon: string | null
   category_color: string | null
@@ -247,6 +265,7 @@ export interface DashboardSummary {
 
 export interface SpendingByCategory {
   category_id: string | null
+  chart_account_id: string | null
   category_name: string
   category_icon: string
   category_color: string

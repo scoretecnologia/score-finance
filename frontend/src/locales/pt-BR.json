@@ -43,7 +43,7 @@
     "accounts": "Contas",
     "import": "Importar",
     "rules": "Regras",
-    "categories": "Categorias",
+    "categories": "Plano de Contas",
     "budgets": "Orçamentos",
     "settings": "Configurações",
     "recurring": "Recorrentes",
@@ -548,8 +548,18 @@
     "created": "Categoria criada",
     "updated": "Categoria atualizada",
     "deleted": "Categoria excluída",
-    "expandAll": "Expandir tudo",
     "collapseAll": "Recolher tudo"
+  },
+  "chartAccounts": {
+    "title": "Contas Analíticas",
+    "addAccount": "Adicionar Conta",
+    "editAccount": "Editar Conta",
+    "newAccount": "Nova Conta Analítica",
+    "category": "Categoria Base",
+    "code": "Código Contábil (Opcional)",
+    "created": "Conta criada",
+    "updated": "Conta atualizada",
+    "deleted": "Conta excluída"
   },
   "groups": {
     "title": "Grupos de Categorias",

@@ -3,7 +3,7 @@ import { getAccountName } from '@/lib/account-utils'
 import { useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { transactions, categories as categoriesApi, accounts as accountsApi, recurring, payees as payeesApi, admin } from '@/lib/api'
+import { transactions, categories as categoriesApi, categoryGroups, chartAccounts, accounts as accountsApi, recurring, payees as payeesApi, admin } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -26,6 +26,7 @@ import { LinkTransferDialog } from '@/components/link-transfer-dialog'
 import { TransactionsFilterBar } from '@/components/transactions-filter-bar'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
+import { ChartAccountSelect } from '@/components/chart-account-select'
 
 function formatCurrency(value: number, _currency?: string, _locale?: string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -47,7 +48,7 @@ export default function TransactionsPage() {
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [filterAccountIds, setFilterAccountIds] = useState<string[]>([])
-  const [filterCategoryIds, setFilterCategoryIds] = useState<string[]>(() => {
+  const [filterChartAccountIds, setFilterChartAccountIds] = useState<string[]>(() => {
     const initial = searchParams.get('category_id')
     return initial ? [initial] : []
   })
@@ -66,7 +67,7 @@ export default function TransactionsPage() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [linkTransferDialogOpen, setLinkTransferDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkCategory, setBulkCategory] = useState<string>('')
+  const [bulkChartAccount, setBulkChartAccount] = useState<string>('')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const highlightId = searchParams.get('highlight')
   const highlightedRowRef = useRef<HTMLTableRowElement | null>(null)
@@ -80,7 +81,7 @@ export default function TransactionsPage() {
     setSearchQuery(nextQ)
     setFilterPayee(searchParams.get('payee_id') ?? '')
     const nextCategory = searchParams.get('category_id')
-    setFilterCategoryIds(nextCategory ? [nextCategory] : [])
+    setFilterChartAccountIds(nextCategory ? [nextCategory] : [])
     setFilterUncategorized(false)
     setPage(1)
   }, [searchParams])
@@ -98,7 +99,7 @@ export default function TransactionsPage() {
   useEffect(() => {
     setSelectedIds(new Set())
     setBulkCategory('')
-  }, [page, filterAccountIds, filterCategoryIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery])
+  }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery])
 
   // Scroll to and flash a highlighted row after navigation (e.g. opened via
   // the command palette). Re-runs whenever highlightId or the current data
@@ -119,16 +120,16 @@ export default function TransactionsPage() {
       clearTimeout(timer)
       el.classList.remove('score-finance-highlight-flash')
     }
-  }, [highlightId, searchQuery, filterPayee, filterCategoryIds, page])
+  }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterCategoryIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery],
+    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery],
     queryFn: () =>
       transactions.list({
         page,
         limit: 20,
         account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
-        category_ids: filterCategoryIds.length > 0 ? filterCategoryIds : undefined,
+        chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
         payee_id: filterPayee || undefined,
         uncategorized: filterUncategorized ? true : undefined,
         from: filterFrom || undefined,
@@ -237,12 +238,11 @@ export default function TransactionsPage() {
   })
 
   const bulkCategorizeMutation = useMutation({
-    mutationFn: ({ ids, categoryId }: { ids: string[]; categoryId: string | null }) =>
-      transactions.bulkCategorize(ids, categoryId),
+    mutationFn: ({ ids, chartAccountId }: { ids: string[]; chartAccountId: string | null }) => transactions.bulkCategorize(ids, null, chartAccountId),
     onSuccess: (result) => {
       invalidateAfterTxMutation()
       setSelectedIds(new Set())
-      setBulkCategory('')
+      setBulkChartAccount('')
       toast.success(t('transactions.bulkSuccess', { count: result.updated }))
     },
     onError: (error) => {
@@ -374,7 +374,7 @@ export default function TransactionsPage() {
                 try {
                   await transactions.export({
                     account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
-                    category_ids: filterCategoryIds.length > 0 ? filterCategoryIds : undefined,
+                    chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
                     uncategorized: filterUncategorized ? true : undefined,
                     from: filterFrom || undefined,
                     to: filterTo || undefined,
@@ -408,8 +408,8 @@ export default function TransactionsPage() {
         onSearchChange={(v) => setSearchInput(v)}
         filterAccountIds={filterAccountIds}
         onAccountIdsChange={(v) => { setFilterAccountIds(v); setPage(1) }}
-        filterCategoryIds={filterCategoryIds}
-        onCategoryIdsChange={(v) => { setFilterCategoryIds(v); setPage(1) }}
+        filterChartAccountIds={filterChartAccountIds}
+        onCategoryIdsChange={(v) => { setFilterChartAccountIds(v); setPage(1) }}
         filterUncategorized={filterUncategorized}
         onUncategorizedChange={(v) => { setFilterUncategorized(v); setPage(1) }}
         filterPayee={filterPayee}
@@ -421,7 +421,7 @@ export default function TransactionsPage() {
           setFilterFrom('')
           setFilterTo('')
           setFilterAccountIds([])
-          setFilterCategoryIds([])
+          setFilterChartAccountIds([])
           setFilterUncategorized(false)
           setFilterPayee('')
           setSearchInput('')
@@ -627,23 +627,18 @@ export default function TransactionsPage() {
             <span className="text-xs md:text-sm font-medium text-foreground whitespace-nowrap">
               {t('transactions.selected', { count: selectedIds.size })}
             </span>
-            <select
+            <ChartAccountSelect
               className="border border-border rounded-lg px-2 md:px-3 py-1.5 text-xs md:text-sm bg-card text-foreground focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px] flex-1 min-w-0"
-              value={bulkCategory}
-              onChange={(e) => setBulkCategory(e.target.value)}
-            >
-              <option value="">{t('transactions.selectCategory')}</option>
-              {categoriesList?.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
+              value={bulkChartAccount}
+              onChange={(e) => setBulkChartAccount(e.target.value)}
+            />
             <Button
               size="sm"
-              disabled={!bulkCategory || bulkCategorizeMutation.isPending}
+              disabled={!bulkChartAccount || bulkCategorizeMutation.isPending}
               onClick={() => {
                 bulkCategorizeMutation.mutate({
                   ids: Array.from(selectedIds),
-                  categoryId: bulkCategory || null,
+                  chartAccountId: bulkChartAccount || null,
                 })
               }}
               className="shrink-0"
@@ -663,7 +658,7 @@ export default function TransactionsPage() {
               {t('transactions.linkAsTransfer')}
             </Button>
             <button
-              onClick={() => { setSelectedIds(new Set()); setBulkCategory('') }}
+              onClick={() => { setSelectedIds(new Set()); setBulkChartAccount('') }}
               className="text-muted-foreground hover:text-foreground p-1 shrink-0"
             >
               <X size={16} />
@@ -721,3 +716,9 @@ export default function TransactionsPage() {
     </div>
   )
 }
+
+
+
+
+
+

@@ -233,13 +233,13 @@ export default function DashboardPage() {
     const budgetMap = new Map<string, (typeof budgetComparison extends (infer T)[] | undefined ? T : never)>()
     if (budgetComparison) {
       for (const b of budgetComparison) {
-        budgetMap.set(b.category_id, b)
+        if (b.chart_account_id) budgetMap.set(b.chart_account_id, b)
       }
     }
     return spending
-      .filter(s => s.category_id !== null)
+      .filter(s => s.chart_account_id !== null)
       .map(s => {
-        const budget = s.category_id ? budgetMap.get(s.category_id) : undefined
+        const budget = s.chart_account_id ? budgetMap.get(s.chart_account_id) : undefined
         const actual = s.total
         const prevAmount = budget ? Number(budget.prev_month_amount) : 0
         let momPct: number | null = null
@@ -249,7 +249,7 @@ export default function DashboardPage() {
           momPct = 100
         }
         return {
-          category_id: s.category_id!,
+          category_id: s.chart_account_id!,
           category_name: s.category_name,
           category_icon: s.category_icon,
           category_color: s.category_color,
@@ -293,9 +293,9 @@ export default function DashboardPage() {
         amount: Number(tx.amount),
         amountPrimary: tx.amount_primary != null ? Number(tx.amount_primary) : null,
         currency: tx.currency,
-        categoryIcon: tx.category?.icon ?? null,
-        categoryName: tx.category?.name ?? null,
-        categoryColor: tx.category?.color ?? null,
+        categoryIcon: tx.chart_account?.icon ?? tx.category?.icon ?? null,
+        categoryName: tx.chart_account?.name ?? tx.category?.name ?? null,
+        categoryColor: tx.chart_account?.color ?? tx.category?.color ?? null,
         isProjected: false,
         attachmentCount: tx.attachment_count ?? 0,
       })
@@ -560,7 +560,7 @@ export default function DashboardPage() {
                       className="rounded-lg px-3 py-2.5 hover:bg-muted/50 transition-colors cursor-pointer"
                       onClick={() => setDrillDown({
                         title: t('dashboard.drillDownCategory', { category: item.category_name, month: monthLabelStr }),
-                        category_id: item.category_id,
+                        chart_account_id: item.category_id,
                         type: 'debit',
                         from: monthStart,
                         to: monthEnd,
@@ -952,3 +952,5 @@ export default function DashboardPage() {
     </div>
   )
 }
+
+

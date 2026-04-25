@@ -6,6 +6,7 @@ import type {
   AppSetting,
   Category,
   CategoryGroup,
+  ChartAccount,
   BankConnection,
   ConnectionSettings,
   Account,
@@ -156,6 +157,24 @@ export const categoryGroups = {
   },
 }
 
+export const chartAccounts = {
+  list: async (): Promise<ChartAccount[]> => {
+    const { data } = await api.get('/chart-accounts')
+    return data
+  },
+  create: async (account: Partial<ChartAccount>): Promise<ChartAccount> => {
+    const { data } = await api.post('/chart-accounts', account)
+    return data
+  },
+  update: async (id: string, account: Partial<ChartAccount>): Promise<ChartAccount> => {
+    const { data } = await api.patch(`/chart-accounts/${id}`, account)
+    return data
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/chart-accounts/${id}`)
+  },
+}
+
 // Bank Connections
 export const connections = {
   list: async (): Promise<BankConnection[]> => {
@@ -250,6 +269,8 @@ export const transactions = {
     account_ids?: string[]
     category_id?: string
     category_ids?: string[]
+    chart_account_id?: string
+    chart_account_ids?: string[]
     payee_id?: string
     uncategorized?: boolean
     type?: string
@@ -294,10 +315,11 @@ export const transactions = {
     const { data } = await api.post('/transactions/transfer', transfer)
     return data
   },
-  bulkCategorize: async (transactionIds: string[], categoryId: string | null): Promise<{ updated: number }> => {
+  bulkCategorize: async (transactionIds: string[], categoryId: string | null, chartAccountId: string | null = null): Promise<{ updated: number }> => {
     const { data } = await api.patch('/transactions/bulk-categorize', {
       transaction_ids: transactionIds,
       category_id: categoryId,
+      chart_account_id: chartAccountId,
     })
     return data
   },
@@ -477,7 +499,7 @@ export const budgets = {
     const { data } = await api.get('/budgets', { params: { month } })
     return data
   },
-  create: async (budget: { category_id: string; amount: number; month: string; is_recurring?: boolean }): Promise<Budget> => {
+  create: async (budget: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean }): Promise<Budget> => {
     const { data } = await api.post('/budgets', budget)
     return data
   },

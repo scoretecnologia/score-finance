@@ -19,6 +19,7 @@ import type { Category, Payee, Rule, RuleCondition, RuleAction } from '@/types'
 import { Trash2, Plus, RefreshCw, X, Package, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
+import { ChartAccountSelect } from '@/components/chart-account-select'
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -580,17 +581,11 @@ function RuleDialog({
                     <option value="append_notes">{t('rules.appendNotes')}</option>
                   </select>
                   {action.op === 'set_category' ? (
-                    <select
+                    <ChartAccountSelect
                       className={`${selectClass} flex-1`}
                       value={action.value}
                       onChange={(e) => updateAction(i, 'value', e.target.value)}
-                      required
-                    >
-                      <option value="">{t('rules.selectCategory')}</option>
-                      {categories.map(cat => (
-                        <option key={cat.id} value={cat.id}>{cat.name}</option>
-                      ))}
-                    </select>
+                    />
                   ) : action.op === 'set_payee' ? (
                     <select
                       className={`${selectClass} flex-1`}

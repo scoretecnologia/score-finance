@@ -37,15 +37,15 @@ import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { Account, Category, Payee } from '@/types'
+import type { Account, Category, CategoryGroup, ChartAccount, Payee } from '@/types'
 
 interface TransactionsFilterBarProps {
   searchInput: string
   onSearchChange: (value: string) => void
   filterAccountIds: string[]
   onAccountIdsChange: (value: string[]) => void
-  filterCategoryIds: string[]
-  onCategoryIdsChange: (value: string[]) => void
+  filterChartAccountIds: string[]
+  onChartAccountIdsChange: (value: string[]) => void
   filterUncategorized: boolean
   onUncategorizedChange: (value: boolean) => void
   filterPayee: string
@@ -56,6 +56,8 @@ interface TransactionsFilterBarProps {
   onClearAll: () => void
   accounts: Account[]
   categories: Category[]
+  groups: CategoryGroup[]
+  chartAccounts: ChartAccount[]
   payees: Payee[]
 }
 
@@ -72,8 +74,8 @@ export function TransactionsFilterBar({
   onSearchChange,
   filterAccountIds,
   onAccountIdsChange,
-  filterCategoryIds,
-  onCategoryIdsChange,
+  filterChartAccountIds,
+  onChartAccountIdsChange,
   filterUncategorized,
   onUncategorizedChange,
   filterPayee,
@@ -84,6 +86,8 @@ export function TransactionsFilterBar({
   onClearAll,
   accounts,
   categories,
+  groups,
+  chartAccounts,
   payees,
 }: TransactionsFilterBarProps) {
   const { t, i18n } = useTranslation()
@@ -133,6 +137,12 @@ export function TransactionsFilterBar({
     return map
   }, [accounts])
 
+  const chartAccountById = useMemo(() => {
+    const map = new Map<string, ChartAccount>()
+    chartAccounts.forEach((c) => map.set(c.id, c))
+    return map
+  }, [chartAccounts])
+
   const categoryById = useMemo(() => {
     const map = new Map<string, Category>()
     categories.forEach((c) => map.set(c.id, c))
@@ -146,7 +156,7 @@ export function TransactionsFilterBar({
 
   const hasAnyFilter =
     filterAccountIds.length > 0 ||
-    filterCategoryIds.length > 0 ||
+    filterChartAccountIds.length > 0 ||
     filterUncategorized ||
     !!filterPayee ||
     !!filterFrom ||
@@ -224,12 +234,12 @@ export function TransactionsFilterBar({
         : ''
 
   const categorySummary = (() => {
-    const total = filterCategoryIds.length + (filterUncategorized ? 1 : 0)
+    const total = filterChartAccountIds.length + (filterUncategorized ? 1 : 0)
     if (total > 1)
       return t('transactions.filtersBar.nSelected', { count: total })
     if (filterUncategorized) return t('transactions.uncategorized')
-    if (filterCategoryIds.length === 1)
-      return categoryById.get(filterCategoryIds[0])?.name ?? ''
+    if (filterChartAccountIds.length === 1)
+      return chartAccountById.get(filterChartAccountIds[0])?.name ?? ''
     return ''
   })()
 
@@ -388,34 +398,93 @@ export function TransactionsFilterBar({
                         italic
                       />
                       <div className="my-1 h-px bg-border/60" />
-                      {categories.length === 0 ? (
-                        <div className="px-2 py-3 text-center text-[12px] text-muted-foreground">
-                          {t('transactions.filtersBar.noOptions')}
-                        </div>
-                      ) : (
-                        categories.map((c) => (
-                          <CheckRow
-                            key={c.id}
-                            checked={filterCategoryIds.includes(c.id)}
-                            onToggle={() => {
-                              keepCategorySubOpenRef.current = true
-                              onCategoryIdsChange(
-                                toggleInArray(filterCategoryIds, c.id),
+                      {(() => {
+                        const items: React.ReactNode[] = []
+                        
+                        // Sort groups by position
+                        const sortedGroups = [...groups].sort((a, b) => a.position - b.position)
+                        
+                        sortedGroups.forEach(group => {
+                          items.push(
+                            <CheckRow
+                              key={`group-${group.id}`}
+                              label={group.name}
+                              isSynthetic
+                              checked={false}
+                              onToggle={() => {}}
+                            />
+                          )
+                          
+                          const groupCategories = categories.filter(c => c.group_id === group.id)
+                          groupCategories.forEach(cat => {
+                            items.push(
+                              <CheckRow
+                                key={`cat-${cat.id}`}
+                                label={cat.name}
+                                isSynthetic
+                                indentLevel={1}
+                                checked={false}
+                                onToggle={() => {}}
+                              />
+                            )
+                            
+                            const catAccounts = chartAccounts.filter(ca => ca.category_id === cat.id)
+                            catAccounts.forEach(acc => {
+                              items.push(
+                                <CheckRow
+                                  key={`acc-${acc.id}`}
+                                  checked={filterChartAccountIds.includes(acc.id)}
+                                  onToggle={() => {
+                                    keepCategorySubOpenRef.current = true
+                                    onChartAccountIdsChange(
+                                      toggleInArray(filterChartAccountIds, acc.id),
+                                    )
+                                  }}
+                                  label={acc.name}
+                                  swatchColor={acc.color}
+                                  indentLevel={2}
+                                />
                               )
-                            }}
-                            label={c.name}
-                            swatchColor={c.color ?? undefined}
-                          />
-                        ))
-                      )}
-                      {(filterCategoryIds.length > 0 || filterUncategorized) && (
+                            })
+                          })
+                        })
+                        
+                        // Handle uncategorized if any chart accounts are missing (should not happen in new system but for safety)
+                        const orphans = chartAccounts.filter(ca => !categories.find(c => c.id === ca.category_id))
+                        if (orphans.length > 0) {
+                           items.push(<DropdownMenuSeparator key="orphan-sep" />)
+                           orphans.forEach(acc => {
+                             items.push(
+                                <CheckRow
+                                  key={`acc-${acc.id}`}
+                                  checked={filterChartAccountIds.includes(acc.id)}
+                                  onToggle={() => {
+                                    keepCategorySubOpenRef.current = true
+                                    onChartAccountIdsChange(
+                                      toggleInArray(filterChartAccountIds, acc.id),
+                                    )
+                                  }}
+                                  label={acc.name}
+                                  swatchColor={acc.color}
+                                />
+                             )
+                           })
+                        }
+
+                        return items.length > 0 ? items : (
+                          <div className="px-2 py-3 text-center text-[12px] text-muted-foreground">
+                            {t('transactions.filtersBar.noOptions')}
+                          </div>
+                        )
+                      })()}
+                      {(filterChartAccountIds.length > 0 || filterUncategorized) && (
                         <>
                           <div className="my-1 h-px bg-border/60" />
                           <DropdownMenuItem
                             onSelect={(e) => {
                               e.preventDefault()
                               keepCategorySubOpenRef.current = true
-                              onCategoryIdsChange([])
+                              onChartAccountIdsChange([])
                               onUncategorizedChange(false)
                             }}
                             className="gap-2 rounded-sm px-2 py-1.5 text-[12px] text-muted-foreground"
@@ -601,19 +670,19 @@ export function TransactionsFilterBar({
                 />
               )
             })}
-            {filterCategoryIds.map((id) => {
-              const cat = categoryById.get(id)
-              if (!cat) return null
+            {filterChartAccountIds.map((id) => {
+              const acc = chartAccountById.get(id)
+              if (!acc) return null
               return (
                 <FilterChip
-                  key={`cat-${id}`}
+                  key={`acc-${id}`}
                   icon={<Tag size={12} />}
                   label={t('transactions.category')}
-                  value={cat.name}
-                  tint={cat.color ?? undefined}
+                  value={acc.name}
+                  tint={acc.color ?? undefined}
                   onRemove={() =>
-                    onCategoryIdsChange(
-                      filterCategoryIds.filter((x) => x !== id),
+                    onChartAccountIdsChange(
+                      filterChartAccountIds.filter((x) => x !== id),
                     )
                   }
                 />
@@ -795,6 +864,8 @@ interface CheckRowProps {
   sublabel?: string
   swatchColor?: string
   italic?: boolean
+  indentLevel?: number
+  isSynthetic?: boolean
 }
 
 function CheckRow({
@@ -804,6 +875,8 @@ function CheckRow({
   sublabel,
   swatchColor,
   italic,
+  indentLevel = 0,
+  isSynthetic = false,
 }: CheckRowProps) {
   return (
     <DropdownMenuItem
@@ -817,16 +890,21 @@ function CheckRow({
         checked && 'bg-primary/5 data-[highlighted]:bg-primary/10',
       )}
     >
-      <span
-        className={cn(
-          'flex size-[14px] shrink-0 items-center justify-center rounded-[4px] border transition-colors',
-          checked
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-border/80 bg-background',
-        )}
-      >
-        {checked && <Check size={10} strokeWidth={3} />}
-      </span>
+      {isSynthetic ? (
+        <span className="size-3.5 shrink-0" style={{ marginLeft: indentLevel * 16 }} />
+      ) : (
+        <span
+          className={cn(
+            'flex size-[14px] shrink-0 items-center justify-center rounded-[4px] border transition-colors',
+            checked
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-border/80 bg-background',
+          )}
+          style={{ marginLeft: indentLevel * 16 }}
+        >
+          {checked && <Check size={10} strokeWidth={3} />}
+        </span>
+      )}
       {swatchColor ? (
         <span
           className="size-2.5 shrink-0 rounded-full border border-black/5"
@@ -837,6 +915,7 @@ function CheckRow({
         className={cn(
           'min-w-0 flex-1 truncate text-left',
           italic && 'italic text-muted-foreground',
+          isSynthetic && 'font-semibold text-muted-foreground text-[11.5px] uppercase tracking-wider',
         )}
       >
         {label}

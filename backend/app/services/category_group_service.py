@@ -69,7 +69,7 @@ async def get_groups(session: AsyncSession, company_id: uuid.UUID) -> list[Categ
     result = await session.execute(
         select(CategoryGroup)
         .where(CategoryGroup.company_id == company_id)
-        .options(selectinload(CategoryGroup.categories))
+        .options(selectinload(CategoryGroup.categories).selectinload(Category.chart_accounts))
         .order_by(CategoryGroup.position)
     )
     return list(result.scalars().all())
@@ -79,7 +79,7 @@ async def get_group(session: AsyncSession, group_id: uuid.UUID, company_id: uuid
     result = await session.execute(
         select(CategoryGroup)
         .where(CategoryGroup.id == group_id, CategoryGroup.company_id == company_id)
-        .options(selectinload(CategoryGroup.categories))
+        .options(selectinload(CategoryGroup.categories).selectinload(Category.chart_accounts))
     )
     return result.scalar_one_or_none()
 

@@ -20,7 +20,8 @@ class DashboardSummary(BaseModel):
 
 
 class SpendingByCategory(BaseModel):
-    category_id: Optional[str]
+    category_id: Optional[str] = None
+    chart_account_id: Optional[str] = None
     category_name: str
     category_icon: str
     category_color: str
@@ -52,7 +53,8 @@ class ProjectedTransaction(BaseModel):
     currency: str
     type: str  # debit, credit
     date: str  # YYYY-MM-DD
-    category_id: Optional[str]
-    category_name: Optional[str]
-    category_icon: Optional[str]
+    category_id: Optional[str] = None
+    chart_account_id: Optional[str] = None
+    category_name: Optional[str] = None
+    category_icon: Optional[str] = None
     category_color: Optional[str] = None

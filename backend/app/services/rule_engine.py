@@ -93,7 +93,8 @@ def apply_rule_actions(
 
         if op == "set_category" and not category_already_set:
             try:
-                tx.category_id = uuid.UUID(str(value))
+                # Value should be a ChartAccount (analytical) UUID
+                tx.chart_account_id = uuid.UUID(str(value))
                 category_already_set = True
             except (ValueError, AttributeError):
                 pass

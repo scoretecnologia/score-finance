@@ -26,7 +26,7 @@ def _primary_amount_expr():
 async def _build_budget_map(
     session: AsyncSession, company_id: uuid.UUID, month_start: date
 ) -> dict[str, tuple[Decimal, bool]]:
-    """Build a map of category_id -> (amount, is_recurring) for the given month.
+    """Build a map of chart_account_id -> (amount, is_recurring) for the given month.
 
     Resolution order:
     1. Month-specific override (is_recurring=false, month=M) takes priority
@@ -34,19 +34,19 @@ async def _build_budget_map(
     """
     budget_map: dict[str, tuple[Decimal, bool]] = {}
 
-    # Query 1: Get effective recurring defaults (most recent per category where month <= M)
-    # Use a subquery to get the max month per category for recurring budgets
+    # Query 1: Get effective recurring defaults (most recent per account where month <= M)
     max_month_subq = (
         select(
-            Budget.category_id,
+            Budget.chart_account_id,
             func.max(Budget.month).label("max_month"),
         )
         .where(
             Budget.company_id == company_id,
             Budget.is_recurring == True,  # noqa: E712
             Budget.month <= month_start,
+            Budget.chart_account_id.isnot(None),
         )
-        .group_by(Budget.category_id)
+        .group_by(Budget.chart_account_id)
         .subquery()
     )
 
@@ -55,7 +55,7 @@ async def _build_budget_map(
         .join(
             max_month_subq,
             and_(
-                Budget.category_id == max_month_subq.c.category_id,
+                Budget.chart_account_id == max_month_subq.c.chart_account_id,
                 Budget.month == max_month_subq.c.max_month,
             ),
         )
@@ -65,18 +65,19 @@ async def _build_budget_map(
         )
     )
     for b in recurring_result.scalars().all():
-        budget_map[str(b.category_id)] = (b.amount, True)
+        budget_map[str(b.chart_account_id)] = (b.amount, True)
 
-    # Query 2: Month-specific overrides (take priority over recurring)
+    # Query 2: Month-specific overrides
     overrides_result = await session.execute(
         select(Budget).where(
             Budget.company_id == company_id,
             Budget.is_recurring == False,  # noqa: E712
             Budget.month == month_start,
+            Budget.chart_account_id.isnot(None),
         )
     )
     for b in overrides_result.scalars().all():
-        budget_map[str(b.category_id)] = (b.amount, False)
+        budget_map[str(b.chart_account_id)] = (b.amount, False)
 
     return budget_map
 
@@ -154,6 +155,7 @@ async def create_budget(
     budget = Budget(
         company_id=company_id,
         category_id=data.category_id,
+        chart_account_id=data.chart_account_id,
         amount=data.amount,
         month=data.month.replace(day=1),
         is_recurring=data.is_recurring,
@@ -227,21 +229,24 @@ async def get_budget_vs_actual(
         prev_month_start = month_start.replace(month=month_start.month - 1)
     prev_month_end = month_start
 
-    # Get all categories for this user with their groups
-    cats_result = await session.execute(
-        select(Category, CategoryGroup)
+    # Get all chart accounts for this user with their categories and groups
+    from app.models.chart_account import ChartAccount
+    stmt = (
+        select(ChartAccount, Category, CategoryGroup)
+        .join(Category, ChartAccount.category_id == Category.id)
         .outerjoin(CategoryGroup, Category.group_id == CategoryGroup.id)
-        .where(Category.company_id == company_id)
+        .where(ChartAccount.company_id == company_id)
     )
-    all_categories = cats_result.all()
+    res = await session.execute(stmt)
+    all_accounts = res.all()
 
-    if not all_categories:
+    if not all_accounts:
         return []
 
     # Get budgets for this month (with recurring resolution)
     budget_map = await _build_budget_map(session, company_id, month_start)
 
-    # Get user's primary currency for FX conversion + reporting mode
+    # Get user's primary currency
     user = await session.get(User, company_id)
     primary_currency = user.primary_currency if user else get_settings().default_currency
     accounting_mode = await get_credit_card_accounting_mode(session)
@@ -249,11 +254,10 @@ async def get_budget_vs_actual(
         Transaction.effective_date if accounting_mode == "accrual" else Transaction.date
     )
 
-    # Get actual spending by category for this month (exclude transfer pairs)
-    # Use amount_primary for multi-currency support
+    # Get actual spending by chart account for this month
     spending_result = await session.execute(
         select(
-            Transaction.category_id,
+            Transaction.chart_account_id,
             func.sum(_primary_amount_expr()),
         )
         .where(
@@ -261,31 +265,19 @@ async def get_budget_vs_actual(
             Transaction.type == "debit",
             report_date >= month_start,
             report_date < month_end,
-            Transaction.category_id.isnot(None),
+            Transaction.chart_account_id.isnot(None),
             Transaction.transfer_pair_id.is_(None),
         )
-        .group_by(Transaction.category_id)
+        .group_by(Transaction.chart_account_id)
     )
     spending_map: dict[str, Decimal] = {}
     for row in spending_result.all():
         spending_map[str(row[0])] = abs(row[1] or Decimal("0"))
 
-    # Add projected recurring transactions for this month (converted to primary currency)
-    projections = await _get_recurring_projections(session, company_id, month_start, month_end)
-    for proj in projections:
-        if proj["type"] != "debit" or not proj["category_id"]:
-            continue
-        cat_id = str(proj["category_id"])
-        converted, _ = await convert(
-            session, Decimal(str(proj["amount"])), proj["currency"], primary_currency,
-        )
-        spending_map[cat_id] = spending_map.get(cat_id, Decimal("0")) + converted
-
-    # Get previous month spending by category (exclude transfer pairs)
-    # Use amount_primary for multi-currency support
+    # Get previous month spending by chart account
     prev_spending_result = await session.execute(
         select(
-            Transaction.category_id,
+            Transaction.chart_account_id,
             func.sum(_primary_amount_expr()),
         )
         .where(
@@ -293,36 +285,25 @@ async def get_budget_vs_actual(
             Transaction.type == "debit",
             report_date >= prev_month_start,
             report_date < prev_month_end,
-            Transaction.category_id.isnot(None),
+            Transaction.chart_account_id.isnot(None),
             Transaction.transfer_pair_id.is_(None),
         )
-        .group_by(Transaction.category_id)
+        .group_by(Transaction.chart_account_id)
     )
     prev_spending_map: dict[str, Decimal] = {}
     for row in prev_spending_result.all():
         prev_spending_map[str(row[0])] = abs(row[1] or Decimal("0"))
 
-    # Add projected recurring transactions for previous month (converted to primary currency)
-    prev_projections = await _get_recurring_projections(session, company_id, prev_month_start, prev_month_end)
-    for proj in prev_projections:
-        if proj["type"] != "debit" or not proj["category_id"]:
-            continue
-        cat_id = str(proj["category_id"])
-        converted, _ = await convert(
-            session, Decimal(str(proj["amount"])), proj["currency"], primary_currency,
-        )
-        prev_spending_map[cat_id] = prev_spending_map.get(cat_id, Decimal("0")) + converted
-
     comparisons = []
-    for category, group in all_categories:
-        cat_id = str(category.id)
-        actual = spending_map.get(cat_id, Decimal("0"))
-        prev_actual = prev_spending_map.get(cat_id, Decimal("0"))
-        budget_entry = budget_map.get(cat_id)
+    for chart_acc, category, group in all_accounts:
+        acc_id = str(chart_acc.id)
+        actual = spending_map.get(acc_id, Decimal("0"))
+        prev_actual = prev_spending_map.get(acc_id, Decimal("0"))
+        budget_entry = budget_map.get(acc_id)
         budget_amount = budget_entry[0] if budget_entry else None
         is_recurring = budget_entry[1] if budget_entry else False
 
-        # Skip categories with no spending in either month and no budget
+        # Skip accounts with no spending and no budget
         if actual == 0 and prev_actual == 0 and budget_amount is None:
             continue
 
@@ -331,10 +312,11 @@ async def get_budget_vs_actual(
             percentage = round(float(actual / budget_amount * 100), 1)
 
         comparisons.append(BudgetVsActual(
+            chart_account_id=chart_acc.id,
             category_id=category.id,
-            category_name=category.name,
-            category_icon=category.icon,
-            category_color=category.color,
+            category_name=chart_acc.name, # Use analytical account name
+            category_icon=chart_acc.icon,
+            category_color=chart_acc.color,
             group_id=group.id if group else None,
             group_name=group.name if group else None,
             budget_amount=budget_amount,

@@ -23,6 +23,7 @@ import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
+import { ChartAccountSelect } from '@/components/chart-account-select'
 
 function formatCurrency(value: number, _currency?: string, _locale?: string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -81,7 +82,7 @@ export default function BudgetsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: { category_id: string; amount: number; month: string; is_recurring?: boolean }) =>
+    mutationFn: (data: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean }) =>
       budgetsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
@@ -251,7 +252,7 @@ export default function BudgetsPage() {
               } else {
                 const isRecurring = formData.get('is_recurring') === 'on'
                 createMutation.mutate({
-                  category_id: formData.get('category_id') as string,
+                  chart_account_id: formData.get('chart_account_id') as string,
                   amount: parseFloat(formData.get('amount') as string),
                   month: monthParam,
                   is_recurring: isRecurring,
@@ -264,23 +265,11 @@ export default function BudgetsPage() {
               <>
                 <div className="space-y-2">
                   <Label>{t('budgets.category')}</Label>
-                  <select
-                    name="category_id"
+                  <ChartAccountSelect
+                    name="chart_account_id"
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     required
-                  >
-                    <option value="">{t('budgets.selectCategory')}</option>
-                    {groupsList?.map((group) => (
-                      <optgroup key={group.id} label={group.name}>
-                        {group.categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                    {categoriesList?.filter((c) => !c.group_id).map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="is_recurring" className="rounded border-border" />
@@ -312,3 +301,4 @@ export default function BudgetsPage() {
     </div>
   )
 }
+

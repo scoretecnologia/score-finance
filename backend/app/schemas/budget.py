@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BudgetCreate(BaseModel):
-    category_id: uuid.UUID
+    category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
     amount: Decimal
     month: _Date  # First day of month
     is_recurring: bool = False
@@ -21,7 +22,8 @@ class BudgetUpdate(BaseModel):
 class BudgetRead(BaseModel):
     id: uuid.UUID
     company_id: uuid.UUID
-    category_id: uuid.UUID
+    category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
     amount: Decimal
     month: _Date
     is_recurring: bool
@@ -30,7 +32,8 @@ class BudgetRead(BaseModel):
 
 
 class BudgetVsActual(BaseModel):
-    category_id: uuid.UUID
+    category_id: Optional[uuid.UUID] = None
+    chart_account_id: Optional[uuid.UUID] = None
     category_name: str
     category_icon: str
     category_color: str

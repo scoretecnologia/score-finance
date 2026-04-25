@@ -9,6 +9,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.category_group import CategoryGroup
+    from app.models.chart_account import ChartAccount
     from app.models.company import Company
     from app.models.user import User
 
@@ -25,7 +26,11 @@ class Category(Base):
     icon: Mapped[str] = mapped_column(String(50), default="circle-help")
     color: Mapped[str] = mapped_column(String(7), default="#6B7280")
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Sintética = agrupadora (pode ter chart_accounts filhas, NÃO recebe lançamentos)
+    # Analítica = folha (recebe lançamentos diretamente, NÃO pode ter filhas)
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
 
     company: Mapped["Company"] = relationship()
     created_by: Mapped[Optional["User"]] = relationship(foreign_keys=[created_by_user_id], back_populates="categories")
     group: Mapped[Optional["CategoryGroup"]] = relationship(back_populates="categories")
+    chart_accounts: Mapped[list["ChartAccount"]] = relationship(back_populates="category", cascade="all, delete-orphan")

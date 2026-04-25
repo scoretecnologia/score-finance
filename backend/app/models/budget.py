@@ -12,6 +12,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.category import Category
+    from app.models.chart_account import ChartAccount
     from app.models.company import Company
 
 
@@ -23,7 +24,8 @@ class Budget(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     company_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"))
-    category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id"))
+    category_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("categories.id"), nullable=True)
+    chart_account_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("chart_accounts.id"), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(precision=15, scale=2))
     month: Mapped[date] = mapped_column(Date)  # First day of month
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
@@ -32,4 +34,5 @@ class Budget(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     company: Mapped["Company"] = relationship()
-    category: Mapped["Category"] = relationship()
+    category: Mapped[Optional["Category"]] = relationship()
+    chart_account: Mapped[Optional["ChartAccount"]] = relationship()
