@@ -1,20 +1,22 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { categories as categoriesApi, categoryGroups as groupsApi, chartAccounts as accountsApi } from '@/lib/api'
+import { categories as categoriesApi, categoryGroups as groupsApi, chartAccounts as accountsApi, chartOfAccounts as chartOfAccountsApi } from '@/lib/api'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
 import type { Category, CategoryGroup, ChartAccount } from '@/types'
-import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown, Upload, Download, X } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { IconPicker } from '@/components/icon-picker'
@@ -66,6 +68,22 @@ export default function CategoriesPage() {
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set())
   
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'group' | 'account', id: string, name: string } | null>(null)
+
+  const [coaImportDialogOpen, setCoaImportDialogOpen] = useState(false)
+  const [coaPreviewDialogOpen, setCoaPreviewDialogOpen] = useState(false)
+  const [coaFileName, setCoaFileName] = useState<string | null>(null)
+  const coaFileInputRef = useRef<HTMLInputElement>(null)
+  const [coaRows, setCoaRows] = useState<{
+    group_name?: string
+    group_icon?: string
+    group_color?: string
+    category_name: string
+    category_icon?: string
+    category_color?: string
+    account_name: string
+    account_icon?: string
+    account_color?: string
+  }[]>([])
 
   const { data: groups } = useQuery({
     queryKey: ['category-groups'],
@@ -129,6 +147,26 @@ export default function CategoriesPage() {
     onSuccess: () => { invalidateAll(); toast.success(t('chartAccounts.deleted')) },
   })
 
+  const coaImportMutation = useMutation({
+    mutationFn: (rows: typeof coaRows) => chartOfAccountsApi.import(rows),
+    onSuccess: (data) => {
+      invalidateAll()
+      setCoaPreviewDialogOpen(false)
+      setCoaImportDialogOpen(false)
+      setCoaRows([])
+      setCoaFileName(null)
+      if (coaFileInputRef.current) coaFileInputRef.current.value = ''
+      const msg = data.skipped_accounts > 0
+        ? t('chartAccounts.coaImportedWithSkipped', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups, skipped: data.skipped_accounts })
+        : t('chartAccounts.coaImported', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups })
+      toast.success(msg)
+    },
+    onError: (error: unknown) => {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || t('common.error'))
+    },
+  })
+
   const toggleGroupCollapse = (groupId: string) => {
     setCollapsedGroups((prev) => {
       const next = new Set(prev)
@@ -174,9 +212,6 @@ export default function CategoriesPage() {
     <div key={acc.id} className="flex items-center gap-3 px-4 sm:px-5 pl-10 sm:pl-16 py-2 border-b border-border last:border-0 hover:bg-muted transition-colors">
       <CategoryIcon icon={acc.icon} color={acc.color} size="sm" />
       <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">{acc.name}</span>
-      {acc.code && (
-        <span className="text-xs text-muted-foreground font-mono mr-2 bg-muted-foreground/10 px-1.5 py-0.5 rounded">{acc.code}</span>
-      )}
       <div className="flex items-center gap-1 shrink-0 ml-2">
         <button
           className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
@@ -246,6 +281,85 @@ export default function CategoriesPage() {
 
   const ungrouped = categoriesList?.filter((c) => !c.group_id) ?? []
 
+  function downloadCoaTemplate() {
+    const header = [
+      'group_name',
+      'group_icon',
+      'group_color',
+      'category_name',
+      'category_icon',
+      'category_color',
+      'account_name',
+      'account_icon',
+      'account_color',
+    ]
+
+    const example = {
+      group_name: 'Despesas Operacionais',
+      group_icon: 'circle-help',
+      group_color: '#6366f1',
+      category_name: 'Transporte',
+      category_icon: 'car',
+      category_color: '#3B82F6',
+      account_name: 'Uber',
+      account_icon: 'car',
+      account_color: '#3B82F6',
+    }
+
+    const ws = XLSX.utils.json_to_sheet([example], { header })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'coa')
+    const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'plano-de-contas-template.xlsx'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  function parseCoaFile(file: File) {
+    setCoaFileName(file.name)
+    file.arrayBuffer()
+      .then((buf) => {
+        const wb = XLSX.read(buf, { type: 'array' })
+        const sheetName = wb.SheetNames[0]
+        const ws = wb.Sheets[sheetName]
+        const rawRows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
+
+        const parsed: typeof coaRows = []
+        for (let i = 0; i < rawRows.length; i += 1) {
+          const r = rawRows[i]
+          const category_name = String(r.category_name ?? '').trim()
+          const account_name = String(r.account_name ?? '').trim()
+          if (!category_name || !account_name) continue
+          parsed.push({
+            group_name: String(r.group_name ?? '').trim() || undefined,
+            group_icon: String(r.group_icon ?? '').trim() || undefined,
+            group_color: String(r.group_color ?? '').trim() || undefined,
+            category_name,
+            category_icon: String(r.category_icon ?? '').trim() || undefined,
+            category_color: String(r.category_color ?? '').trim() || undefined,
+            account_name,
+            account_icon: String(r.account_icon ?? '').trim() || undefined,
+            account_color: String(r.account_color ?? '').trim() || undefined,
+          })
+        }
+
+        if (parsed.length === 0) {
+          toast.error(t('chartAccounts.coaImportEmpty'))
+          return
+        }
+        setCoaRows(parsed)
+        setCoaImportDialogOpen(false)
+        setCoaPreviewDialogOpen(true)
+      })
+      .catch(() => toast.error(t('common.error')))
+  }
+
   return (
     <div>
       <PageHeader section={t('nav.settings')} title={t('chartAccounts.title')} />
@@ -275,6 +389,12 @@ export default function CategoriesPage() {
           }
           action={
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={downloadCoaTemplate}>
+                <Download size={12} /> <span className="hidden sm:inline">{t('chartAccounts.downloadTemplate')}</span>
+              </Button>
+              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaImportDialogOpen(true)}>
+                <Upload size={12} /> <span className="hidden sm:inline">{t('chartAccounts.importXlsx')}</span>
+              </Button>
               <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => openGroupDialog(null)}>
                 <Plus size={13} /> <span className="hidden sm:inline">{t('groups.add')}</span>
               </Button>
@@ -455,7 +575,7 @@ export default function CategoriesPage() {
 
       {/* Chart Account Dialog */}
       <Dialog open={accountDialogOpen} onOpenChange={() => { setAccountDialogOpen(false); setEditingAccount(null) }}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editingAccount ? t('chartAccounts.editAccount') : t('chartAccounts.newAccount')}</DialogTitle>
           </DialogHeader>
@@ -464,12 +584,16 @@ export default function CategoriesPage() {
             onSubmit={(e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
-              const data = {
-                name: formData.get('name') as string,
-                code: (formData.get('code') as string) || null,
-                icon: formData.get('icon') as string,
-                color: formData.get('color') as string,
-                category_id: formData.get('category_id') as string,
+              const name = (formData.get('name') as string).trim()
+              const category_id = formData.get('category_id') as string
+              const category = categoriesList?.find((c) => c.id === category_id)
+              const data: Partial<ChartAccount> = {
+                name,
+                category_id,
+              }
+              if (!editingAccount || (editingAccount.category_id !== category_id)) {
+                data.icon = category?.icon
+                data.color = category?.color
               }
               if (editingAccount) {
                 updateAccountMutation.mutate({ id: editingAccount.id, ...data })
@@ -480,12 +604,8 @@ export default function CategoriesPage() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <Label>{t('groups.name')}</Label>
-              <Input name="name" defaultValue={editingAccount?.name ?? ''} required />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('chartAccounts.code')}</Label>
-              <Input name="code" defaultValue={editingAccount?.code ?? ''} placeholder="Ex: 3.1.2.05" />
+              <Label>{t('chartAccounts.name')}</Label>
+              <Input name="name" defaultValue={editingAccount?.name ?? ''} required className="h-11 text-base" />
             </div>
             <div className="space-y-2">
               <Label>{t('chartAccounts.category')}</Label>
@@ -493,7 +613,7 @@ export default function CategoriesPage() {
                 name="category_id"
                 defaultValue={selectedParentCatId}
                 required
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full border border-border rounded-lg px-3 py-3 text-base bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="" disabled>{t('common.selectCategory')}</option>
                 {categoriesList?.map((c) => (
@@ -501,22 +621,123 @@ export default function CategoriesPage() {
                 ))}
               </select>
             </div>
-            <div className="space-y-2">
-              <Label>{t('groups.color')}</Label>
-              <Input name="color" type="color" value={formColor} onChange={(e) => setFormColor(e.target.value)} required className="h-9 px-2 py-1" />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('groups.icon')}</Label>
-              <IconPicker value={formIcon} color={formColor} onChange={setFormIcon} />
-              <input type="hidden" name="icon" value={formIcon} />
-            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAccountDialogOpen(false); setEditingAccount(null) }}>
                 {t('common.cancel')}
               </Button>
-              <Button type="submit">{t('common.save')}</Button>
+              <Button type="submit" className="h-11 px-8 text-base">{t('common.save')}</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={coaImportDialogOpen} onOpenChange={setCoaImportDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('chartAccounts.coaImportTitle')}</DialogTitle>
+            <DialogDescription>{t('chartAccounts.coaImportHelp')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
+            group_name, group_icon, group_color, category_name, category_icon, category_color, account_name, account_icon, account_color
+          </div>
+
+          <input
+            ref={coaFileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) parseCoaFile(file)
+            }}
+          />
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" type="button" onClick={() => setCoaImportDialogOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" onClick={() => coaFileInputRef.current?.click()} className="gap-2">
+              <Upload size={14} />
+              {t('chartAccounts.selectFile')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={coaPreviewDialogOpen} onOpenChange={setCoaPreviewDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('chartAccounts.coaPreviewTitle')}</DialogTitle>
+            <DialogDescription>{coaFileName ?? t('chartAccounts.coaPreviewSubtitle')}</DialogDescription>
+          </DialogHeader>
+
+          <div className="border border-border rounded-lg overflow-hidden">
+            <div className="grid grid-cols-[1.2fr_1.2fr_1.4fr_44px] bg-muted/50 text-xs font-medium text-muted-foreground px-3 py-2">
+              <span>{t('groups.title')}</span>
+              <span>{t('categories.title')}</span>
+              <span>{t('chartAccounts.title')}</span>
+              <span />
+            </div>
+            {coaRows.map((row, idx) => (
+              <div key={idx} className="grid grid-cols-[1.2fr_1.2fr_1.4fr_44px] gap-2 px-3 py-2 border-t border-border items-center">
+                <Input
+                  value={row.group_name ?? ''}
+                  onChange={(e) => setCoaRows(prev => prev.map((r, i) => i === idx ? { ...r, group_name: e.target.value || undefined } : r))}
+                  placeholder={t('chartAccounts.coaUngrouped')}
+                  className="h-11 text-base"
+                />
+                <Input
+                  value={row.category_name}
+                  onChange={(e) => setCoaRows(prev => prev.map((r, i) => i === idx ? { ...r, category_name: e.target.value } : r))}
+                  className="h-11 text-base"
+                />
+                <Input
+                  value={row.account_name}
+                  onChange={(e) => setCoaRows(prev => prev.map((r, i) => i === idx ? { ...r, account_name: e.target.value } : r))}
+                  className="h-11 text-base"
+                />
+                <button
+                  className="p-2 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                  onClick={() => setCoaRows(prev => prev.filter((_, i) => i !== idx))}
+                  title={t('common.delete')}
+                  disabled={coaImportMutation.isPending}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => {
+                setCoaPreviewDialogOpen(false)
+                setCoaRows([])
+                setCoaFileName(null)
+                if (coaFileInputRef.current) coaFileInputRef.current.value = ''
+              }}
+              disabled={coaImportMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                const invalid = coaRows.find(r => !r.category_name.trim() || !r.account_name.trim())
+                if (invalid) {
+                  toast.error(t('chartAccounts.coaImportInvalid'))
+                  return
+                }
+                coaImportMutation.mutate(coaRows)
+              }}
+              disabled={coaRows.length === 0 || coaImportMutation.isPending}
+            >
+              {t('chartAccounts.importNow')}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

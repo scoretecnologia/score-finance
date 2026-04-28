@@ -175,6 +175,29 @@ export const chartAccounts = {
   },
 }
 
+export const chartOfAccounts = {
+  import: async (
+    rows: {
+      group_name?: string
+      group_icon?: string
+      group_color?: string
+      category_name: string
+      category_icon?: string
+      category_color?: string
+      account_name: string
+      account_icon?: string
+      account_color?: string
+    }[],
+    options?: { skip_duplicates?: boolean }
+  ): Promise<{ imported_groups: number; imported_categories: number; imported_accounts: number; skipped_accounts: number }> => {
+    const { data } = await api.post('/chart-of-accounts/import', {
+      rows,
+      skip_duplicates: options?.skip_duplicates ?? true,
+    })
+    return data
+  },
+}
+
 // Bank Connections
 export const connections = {
   list: async (): Promise<BankConnection[]> => {
@@ -432,6 +455,16 @@ export const payees = {
     const { data } = await api.post('/payees', payee)
     return data
   },
+  bulkImport: async (
+    payees: { name: string; type?: string; notes?: string; is_favorite?: boolean }[],
+    options?: { skip_duplicates?: boolean }
+  ): Promise<{ imported: number; skipped: number }> => {
+    const { data } = await api.post('/payees/import', {
+      payees,
+      skip_duplicates: options?.skip_duplicates ?? true,
+    })
+    return data
+  },
   update: async (id: string, payee: Partial<Payee>): Promise<Payee> => {
     const { data } = await api.patch(`/payees/${id}`, payee)
     return data
@@ -453,6 +486,16 @@ export const rules = {
   },
   create: async (rule: Omit<Rule, 'id' | 'user_id'>): Promise<Rule> => {
     const { data } = await api.post('/rules', rule)
+    return data
+  },
+  bulkImport: async (
+    rules: Omit<Rule, 'id' | 'user_id'>[],
+    options?: { skip_duplicates?: boolean }
+  ): Promise<{ imported: number; skipped: number }> => {
+    const { data } = await api.post('/rules/import', {
+      rules,
+      skip_duplicates: options?.skip_duplicates ?? true,
+    })
     return data
   },
   update: async (id: string, rule: Partial<Rule>): Promise<Rule> => {

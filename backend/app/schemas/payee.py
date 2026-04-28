@@ -14,6 +14,13 @@ class PayeeCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class PayeeImportCreate(BaseModel):
+    name: str
+    type: str = "merchant"
+    notes: Optional[str] = None
+    is_favorite: bool = False
+
+
 class PayeeUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
@@ -46,3 +53,13 @@ class PayeeSummary(BaseModel):
 class PayeeMergeRequest(BaseModel):
     source_ids: list[uuid.UUID]
     target_id: uuid.UUID
+
+
+class PayeeBulkImportRequest(BaseModel):
+    payees: list[PayeeImportCreate]
+    skip_duplicates: bool = True
+
+
+class PayeeBulkImportResult(BaseModel):
+    imported: int
+    skipped: int

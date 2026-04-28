@@ -9,7 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.payee import Payee, PayeeMapping
 from app.models.transaction import Transaction
 from app.models.category import Category
-from app.schemas.payee import PayeeCreate, PayeeUpdate
+from app.schemas.payee import PayeeCreate, PayeeImportCreate, PayeeUpdate
+
+
+class DuplicatePayeeError(Exception):
+    pass
 
 
 async def get_payees(session: AsyncSession, company_id: uuid.UUID) -> list[Payee]:
@@ -83,6 +87,55 @@ async def create_payee(session: AsyncSession, company_id: uuid.UUID, data: Payee
     await session.refresh(payee)
     payee.transaction_count = 0
     return payee
+
+
+async def bulk_import_payees(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    payees: list[PayeeImportCreate],
+    *,
+    skip_duplicates: bool = True,
+) -> tuple[int, int]:
+    existing = await session.execute(
+        select(func.lower(Payee.name)).where(Payee.company_id == company_id)
+    )
+    seen = {row[0] for row in existing.all() if row[0]}
+
+    imported = 0
+    skipped = 0
+
+    for data in payees:
+        name = data.name.strip()
+        if not name:
+            raise ValueError("Payee name cannot be empty")
+
+        key = name.lower()
+        if key in seen:
+            if skip_duplicates:
+                skipped += 1
+                continue
+            raise DuplicatePayeeError("A payee with this name already exists")
+
+        payee = Payee(
+            company_id=company_id,
+            name=name,
+            type=data.type,
+            notes=data.notes,
+            is_favorite=data.is_favorite,
+        )
+        session.add(payee)
+        await session.flush()
+
+        mapping = PayeeMapping(id=payee.id, company_id=company_id, target_id=payee.id)
+        session.add(mapping)
+
+        imported += 1
+        seen.add(key)
+
+    if imported > 0:
+        await session.commit()
+
+    return imported, skipped
 
 
 async def update_payee(

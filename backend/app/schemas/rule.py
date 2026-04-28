@@ -45,3 +45,13 @@ class RuleRead(BaseModel):
     is_active: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RuleBulkImportRequest(BaseModel):
+    rules: list[RuleCreate]
+    skip_duplicates: bool = True
+
+
+class RuleBulkImportResult(BaseModel):
+    imported: int
+    skipped: int

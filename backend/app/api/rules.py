@@ -8,7 +8,7 @@ from app.core.tenant import get_current_company
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
-from app.schemas.rule import RuleCreate, RuleRead, RuleUpdate
+from app.schemas.rule import RuleBulkImportRequest, RuleBulkImportResult, RuleCreate, RuleRead, RuleUpdate
 from app.services import rule_service
 from app.services.rule_service import DuplicateRuleError
 
@@ -33,6 +33,28 @@ async def create_rule(
 ):
     try:
         return await rule_service.create_rule(session, company.id, data)
+    except DuplicateRuleError:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A rule with this name already exists",
+        )
+
+
+@router.post("/import", response_model=RuleBulkImportResult)
+async def import_rules(
+    payload: RuleBulkImportRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    try:
+        imported, skipped = await rule_service.bulk_import_rules(
+            session,
+            company.id,
+            payload.rules,
+            skip_duplicates=payload.skip_duplicates,
+        )
+        return {"imported": imported, "skipped": skipped}
     except DuplicateRuleError:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

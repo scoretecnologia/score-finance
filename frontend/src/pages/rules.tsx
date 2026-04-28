@@ -1,22 +1,24 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { chartAccounts as chartAccountsApi, rules as rulesApi, accounts as accountsApi, payees as payeesApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
 import type { ChartAccount, Payee, Rule, RuleCondition, RuleAction } from '@/types'
-import { Trash2, Plus, RefreshCw, X, Package, Check, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Trash2, Plus, RefreshCw, X, ArrowUpDown, ArrowUp, ArrowDown, Upload, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
 import { ChartAccountSelect } from '@/components/chart-account-select'
@@ -103,8 +105,9 @@ export default function RulesPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [packsDialogOpen, setPacksDialogOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Rule | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Rule | null>(null)
 
   const { data: chartAccountsList } = useQuery({
     queryKey: ['chart-accounts'],
@@ -127,7 +130,6 @@ export default function RulesPage() {
     mutationFn: (data: Omit<Rule, 'id' | 'user_id'>) => rulesApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      queryClient.invalidateQueries({ queryKey: ['rule-packs'] })
       setDialogOpen(false)
       toast.success(t('rules.created'))
     },
@@ -145,7 +147,6 @@ export default function RulesPage() {
     mutationFn: ({ id, ...data }: Partial<Rule> & { id: string }) => rulesApi.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      queryClient.invalidateQueries({ queryKey: ['rule-packs'] })
       setDialogOpen(false)
       setEditing(null)
       toast.success(t('rules.updated'))
@@ -164,7 +165,7 @@ export default function RulesPage() {
     mutationFn: (id: string) => rulesApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rules'] })
-      queryClient.invalidateQueries({ queryKey: ['rule-packs'] })
+      setDeleteTarget(null)
       toast.success(t('rules.deleted'))
     },
   })
@@ -207,6 +208,32 @@ export default function RulesPage() {
     return list.sort((a, b) => dir * (a.priority - b.priority))
   }, [rulesList, chartAccounts, sortBy, sortDir])
 
+  function downloadTemplate() {
+    const header = ['name', 'conditions_op', 'priority', 'is_active', 'conditions', 'actions']
+    const example = {
+      name: 'Uber',
+      conditions_op: 'or',
+      priority: 10,
+      is_active: true,
+      conditions: JSON.stringify([{ field: 'description', op: 'starts_with', value: 'UBER' }]),
+      actions: JSON.stringify([{ op: 'append_notes', value: 'tag:uber' }]),
+    }
+
+    const ws = XLSX.utils.json_to_sheet([example], { header })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'rules')
+    const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'rules-template.xlsx'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <PageHeader section={t('rules.section')} title={t('nav.rules')} />
@@ -220,10 +247,19 @@ export default function RulesPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 h-8"
-                onClick={() => setPacksDialogOpen(true)}
+                onClick={downloadTemplate}
               >
-                <Package size={12} />
-                <span className="hidden sm:inline">{t('rules.packs')}</span>
+                <Download size={12} />
+                <span className="hidden sm:inline">{t('rules.downloadTemplate')}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8"
+                onClick={() => setImportDialogOpen(true)}
+              >
+                <Upload size={12} />
+                <span className="hidden sm:inline">{t('rules.importXlsx')}</span>
               </Button>
               <Button
                 variant="outline"
@@ -295,7 +331,7 @@ export default function RulesPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                      onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(rule.id) }}
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(rule) }}
                       disabled={deleteMutation.isPending}
                     >
                       <Trash2 size={13} />
@@ -310,10 +346,36 @@ export default function RulesPage() {
         )}
       </SectionCard>
 
-      <RulePacksDialog
-        open={packsDialogOpen}
-        onClose={() => setPacksDialogOpen(false)}
-      />
+      <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('rules.confirmDeleteTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('rules.confirmDeleteDesc', { name: deleteTarget?.name ?? '' })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="destructive"
+              type="button"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={!deleteTarget || deleteMutation.isPending}
+            >
+              {t('common.delete')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ImportRulesDialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} />
 
       <RuleDialog
         key={editing?.id ?? 'new'}
@@ -336,69 +398,157 @@ export default function RulesPage() {
   )
 }
 
-function RulePacksDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function parseBoolean(val: unknown, defaultValue: boolean) {
+  if (val === null || val === undefined || val === '') return defaultValue
+  if (typeof val === 'boolean') return val
+  if (typeof val === 'number') return val !== 0
+  if (typeof val === 'string') {
+    const v = val.trim().toLowerCase()
+    if (['true', '1', 'sim', 's', 'yes', 'y'].includes(v)) return true
+    if (['false', '0', 'nao', 'não', 'n', 'no'].includes(v)) return false
+  }
+  return defaultValue
+}
+
+function parseJsonArray(val: unknown) {
+  if (Array.isArray(val)) return val
+  if (val === null || val === undefined || val === '') return null
+  if (typeof val === 'string') {
+    const trimmed = val.trim()
+    if (!trimmed) return null
+    const parsed = JSON.parse(trimmed)
+    return Array.isArray(parsed) ? parsed : null
+  }
+  return null
+}
+
+function ImportRulesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
 
-  const { data: rulePacks } = useQuery({
-    queryKey: ['rule-packs'],
-    queryFn: rulesApi.packs,
-    enabled: open,
-  })
+  async function handleFile(file: File) {
+    setIsImporting(true)
+    setFileName(file.name)
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheetName = wb.SheetNames[0]
+      const ws = wb.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
 
-  const installPackMutation = useMutation({
-    mutationFn: (code: string) => rulesApi.installPack(code),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['rules'] })
-      queryClient.invalidateQueries({ queryKey: ['rule-packs'] })
-      if (data.installed === 0) {
-        toast.info(t('rules.packAlreadyInstalled'))
-      } else {
-        toast.success(t('rules.packInstalled', { count: data.installed }))
+      const parsedRules: Omit<Rule, 'id' | 'user_id'>[] = []
+      const errors: string[] = []
+
+      rows.forEach((row, idx) => {
+        const name = String(row.name ?? '').trim()
+        if (!name) {
+          errors.push(t('rules.importRowMissingName', { row: idx + 2 }))
+          return
+        }
+
+        const conditions = parseJsonArray(row.conditions)
+        if (!conditions) {
+          errors.push(t('rules.importRowInvalidConditions', { row: idx + 2 }))
+          return
+        }
+
+        const actions = parseJsonArray(row.actions)
+        if (!actions) {
+          errors.push(t('rules.importRowInvalidActions', { row: idx + 2 }))
+          return
+        }
+
+        const conditionsOpRaw = String(row.conditions_op ?? 'and').trim().toLowerCase()
+        const conditions_op = (conditionsOpRaw === 'or' ? 'or' : 'and') as 'and' | 'or'
+        const priority = Number(row.priority ?? 0) || 0
+        const is_active = parseBoolean(row.is_active, true)
+
+        parsedRules.push({
+          name,
+          conditions_op,
+          priority,
+          is_active,
+          conditions: conditions as RuleCondition[],
+          actions: actions as RuleAction[],
+        })
+      })
+
+      if (errors.length > 0) {
+        toast.error(errors[0])
+        return
       }
-    },
-    onError: () => toast.error(t('common.error')),
-  })
+
+      if (parsedRules.length === 0) {
+        toast.error(t('rules.importEmpty'))
+        return
+      }
+
+      const res = await rulesApi.bulkImport(parsedRules)
+      queryClient.invalidateQueries({ queryKey: ['rules'] })
+      const msg = res.skipped > 0
+        ? t('rules.importedWithSkipped', { imported: res.imported, skipped: res.skipped })
+        : t('rules.imported', { count: res.imported })
+      toast.success(msg)
+      onClose()
+      setFileName(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      setIsImporting(false)
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t('rules.packs')}</DialogTitle>
+          <DialogTitle>{t('rules.importTitle')}</DialogTitle>
         </DialogHeader>
+
         <div className="space-y-2">
-          {rulePacks?.map((pack) => (
-            <div
-              key={pack.code}
-              className="flex items-center gap-3 p-3 rounded-lg border border-border"
-            >
-              <span className="text-2xl">{pack.flag}</span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">{pack.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {t('rules.packRuleCount', { count: pack.rule_count })}
-                </p>
-              </div>
-              {pack.installed ? (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                  <Check size={14} />
-                  {t('rules.installed')}
-                </span>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5 h-7 text-xs"
-                  onClick={() => installPackMutation.mutate(pack.code)}
-                  disabled={installPackMutation.isPending}
-                >
-                  <Package size={11} />
-                  {t('rules.installPack')}
-                </Button>
-              )}
-            </div>
-          ))}
+          <p className="text-sm text-muted-foreground">{t('rules.importHelp')}</p>
+          <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
+            name, conditions_op, priority, is_active, conditions, actions
+          </div>
         </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleFile(file)
+          }}
+        />
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              setFileName(null)
+              if (fileInputRef.current) fileInputRef.current.value = ''
+              onClose()
+            }}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className="gap-2"
+          >
+            <Upload size={14} />
+            {isImporting ? (fileName ?? t('rules.importing')) : t('rules.selectFile')}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

@@ -115,7 +115,7 @@ async def get_transactions(
         base_query = base_query.where(Transaction.payee_id == payee_id)
     if uncategorized:
         base_query = base_query.where(
-            Transaction.category_id == None,
+            Transaction.chart_account_id == None,
             Transaction.transfer_pair_id.is_(None),
         )
     if exclude_transfers:

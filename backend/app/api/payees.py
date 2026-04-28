@@ -10,9 +10,10 @@ from app.core.tenant import get_current_company
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
-from app.schemas.payee import PayeeCreate, PayeeMergeRequest, PayeeRead, PayeeSummary, PayeeUpdate
+from app.schemas.payee import PayeeBulkImportRequest, PayeeBulkImportResult, PayeeCreate, PayeeMergeRequest, PayeeRead, PayeeSummary, PayeeUpdate
 from app.schemas.category import CategoryRead
 from app.services import payee_service
+from app.services.payee_service import DuplicatePayeeError
 
 router = APIRouter(prefix="/api/payees", tags=["payees"])
 
@@ -71,6 +72,27 @@ async def create_payee(
 ):
     try:
         return await payee_service.create_payee(session, company.id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/import", response_model=PayeeBulkImportResult)
+async def import_payees(
+    payload: PayeeBulkImportRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    try:
+        imported, skipped = await payee_service.bulk_import_payees(
+            session,
+            company.id,
+            payload.payees,
+            skip_duplicates=payload.skip_duplicates,
+        )
+        return {"imported": imported, "skipped": skipped}
+    except DuplicatePayeeError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

@@ -580,6 +580,45 @@ async def create_rule(session: AsyncSession, company_id: uuid.UUID, data: RuleCr
     return rule
 
 
+async def bulk_import_rules(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    rules: list[RuleCreate],
+    *,
+    skip_duplicates: bool = True,
+) -> tuple[int, int]:
+    existing_names = await _get_existing_rule_names(session, company_id)
+    seen_names = set(existing_names)
+
+    imported = 0
+    skipped = 0
+
+    for data in rules:
+        if data.name in seen_names:
+            if skip_duplicates:
+                skipped += 1
+                continue
+            raise DuplicateRuleError(f"A rule named '{data.name}' already exists")
+
+        rule = Rule(
+            company_id=company_id,
+            name=data.name,
+            conditions_op=data.conditions_op,
+            conditions=[c.model_dump() for c in data.conditions],
+            actions=[a.model_dump() for a in data.actions],
+            priority=data.priority,
+            is_active=data.is_active,
+        )
+        session.add(rule)
+        imported += 1
+        seen_names.add(data.name)
+
+    if imported > 0:
+        await session.commit()
+
+    return imported, skipped
+
+
 async def update_rule(
     session: AsyncSession, rule_id: uuid.UUID, company_id: uuid.UUID, data: RuleUpdate
 ) -> Optional[Rule]:

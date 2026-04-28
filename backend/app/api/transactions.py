@@ -157,7 +157,11 @@ async def bulk_categorize(
     company: Company = Depends(get_current_company),
 ):
     count = await transaction_service.bulk_update_category(
-        session, company.id, data.transaction_ids, data.category_id
+        session,
+        company.id,
+        data.transaction_ids,
+        category_id=data.category_id,
+        chart_account_id=data.chart_account_id,
     )
     return {"updated": count}
 

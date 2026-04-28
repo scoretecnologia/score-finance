@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { payees as payeesApi, transactions as transactionsApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -25,7 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/page-header'
-import { Search, Star, Merge, Trash2, ArrowRight } from 'lucide-react'
+import { Search, Star, Merge, Trash2, ArrowRight, Upload, Download } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
 import type { Payee } from '@/types'
@@ -49,6 +51,7 @@ export default function PayeesPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
   const [editingPayee, setEditingPayee] = useState<Payee | null>(null)
   const [summaryPayee, setSummaryPayee] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -169,6 +172,30 @@ export default function PayeesPage() {
     !search || p.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  function downloadTemplate() {
+    const header = ['name', 'type', 'notes', 'is_favorite']
+    const example = {
+      name: 'Uber',
+      type: 'merchant',
+      notes: 'Ex: fornecedor recorrente',
+      is_favorite: false,
+    }
+
+    const ws = XLSX.utils.json_to_sheet([example], { header })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'payees')
+    const bytes = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+    const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'payees-template.xlsx'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div>
       <PageHeader
@@ -176,6 +203,14 @@ export default function PayeesPage() {
         title={t('payees.title')}
         action={
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={downloadTemplate} className="gap-2">
+              <Download size={16} />
+              {t('payees.downloadTemplate')}
+            </Button>
+            <Button variant="outline" onClick={() => setImportDialogOpen(true)} className="gap-2">
+              <Upload size={16} />
+              {t('payees.importXlsx')}
+            </Button>
             {selectedIds.size >= 2 && (
               <Button variant="outline" onClick={() => { setMergeTargetId(''); setMergeDialogOpen(true) }}>
                 <Merge size={16} className="mr-1.5" />
@@ -479,6 +514,142 @@ export default function PayeesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ImportPayeesDialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} />
     </div>
+  )
+}
+
+function parseBoolean(val: unknown, defaultValue: boolean) {
+  if (val === null || val === undefined || val === '') return defaultValue
+  if (typeof val === 'boolean') return val
+  if (typeof val === 'number') return val !== 0
+  if (typeof val === 'string') {
+    const v = val.trim().toLowerCase()
+    if (['true', '1', 'sim', 's', 'yes', 'y'].includes(v)) return true
+    if (['false', '0', 'nao', 'não', 'n', 'no'].includes(v)) return false
+  }
+  return defaultValue
+}
+
+function ImportPayeesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isImporting, setIsImporting] = useState(false)
+  const [fileName, setFileName] = useState<string | null>(null)
+
+  async function handleFile(file: File) {
+    setIsImporting(true)
+    setFileName(file.name)
+    try {
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
+      const sheetName = wb.SheetNames[0]
+      const ws = wb.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
+
+      const parsed: { name: string; type?: string; notes?: string; is_favorite?: boolean }[] = []
+      const errors: string[] = []
+      const allowedTypes = new Set(['merchant', 'person', 'company'])
+
+      rows.forEach((row, idx) => {
+        const name = String(row.name ?? '').trim()
+        if (!name) {
+          errors.push(t('payees.importRowMissingName', { row: idx + 2 }))
+          return
+        }
+
+        const typeRaw = String(row.type ?? '').trim().toLowerCase()
+        const type = typeRaw ? typeRaw : 'merchant'
+        if (!allowedTypes.has(type)) {
+          errors.push(t('payees.importRowInvalidType', { row: idx + 2 }))
+          return
+        }
+
+        const notes = String(row.notes ?? '').trim()
+        const is_favorite = parseBoolean(row.is_favorite, false)
+
+        parsed.push({
+          name,
+          type,
+          notes: notes ? notes : undefined,
+          is_favorite,
+        })
+      })
+
+      if (errors.length > 0) {
+        toast.error(errors[0])
+        return
+      }
+
+      if (parsed.length === 0) {
+        toast.error(t('payees.importEmpty'))
+        return
+      }
+
+      const res = await payeesApi.bulkImport(parsed)
+      queryClient.invalidateQueries({ queryKey: ['payees'] })
+      const msg = res.skipped > 0
+        ? t('payees.importedWithSkipped', { imported: res.imported, skipped: res.skipped })
+        : t('payees.imported', { count: res.imported })
+      toast.success(msg)
+      onClose()
+      setFileName(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('payees.importTitle')}</DialogTitle>
+          <DialogDescription>{t('payees.importHelp')}</DialogDescription>
+        </DialogHeader>
+
+        <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
+          name, type, notes, is_favorite
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void handleFile(file)
+          }}
+        />
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => {
+              setFileName(null)
+              if (fileInputRef.current) fileInputRef.current.value = ''
+              onClose()
+            }}
+          >
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isImporting}
+            className="gap-2"
+          >
+            <Upload size={14} />
+            {isImporting ? (fileName ?? t('payees.importing')) : t('payees.selectFile')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

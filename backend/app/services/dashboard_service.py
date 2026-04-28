@@ -154,7 +154,7 @@ async def get_summary(
     # Pending categorization — exclude opening_balance and transfer pairs
     pending_cat_filters = [
         Transaction.company_id == company_id,
-        Transaction.category_id.is_(None),
+        Transaction.chart_account_id.is_(None),
         Transaction.source != "opening_balance",
         Transaction.transfer_pair_id.is_(None),
     ]
