@@ -40,7 +40,7 @@ export default function PayeesPage() {
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const typeLabels: Record<string, string> = {
     merchant: t('payees.typeMerchant'),
     person: t('payees.typePerson'),

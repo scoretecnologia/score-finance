@@ -35,7 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
 export default function ImportPage() {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -62,6 +62,12 @@ export default function ImportPage() {
   const { data: importHistory = [] } = useQuery({
     queryKey: ['import-logs'],
     queryFn: importLogsApi.list,
+  })
+
+  const { data: duplicateFlags, isFetching: isCheckingDuplicates } = useQuery({
+    queryKey: ['import-duplicates', selectedAccount, previewData?.transactions],
+    queryFn: () => transactionsApi.checkDuplicates(selectedAccount, previewData!.transactions),
+    enabled: !!selectedAccount && !!previewData?.transactions?.length,
   })
 
   const previewMutation = useMutation({
@@ -258,7 +264,10 @@ export default function ImportPage() {
           {/* Header */}
           <div className="px-5 py-4 border-b border-border">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">{t('import.preview')}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">{t('import.preview')}</p>
+                {isCheckingDuplicates && <span className="text-xs text-muted-foreground animate-pulse">Verificando...</span>}
+              </div>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1 text-emerald-600">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
@@ -396,17 +405,29 @@ export default function ImportPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {previewData.transactions.slice(0, 50).map((tx, i) => (
-                  <TableRow key={i} className="border-b border-border last:border-0 hover:bg-muted">
-                    <TableCell className="py-3 pl-5 text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(tx.date).toLocaleDateString(locale)}
-                    </TableCell>
-                    <TableCell className="py-3 text-sm text-foreground">{tx.description}</TableCell>
-                    <TableCell className={`py-3 pr-5 text-right text-sm font-bold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
-                      {tx.type === 'credit' ? '+' : '−'}{formatCurrency(Math.abs(Number(tx.amount)), userCurrency, locale)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {previewData.transactions.slice(0, 50).map((tx, i) => {
+                  const isDuplicate = duplicateFlags?.[i] ?? false;
+                  return (
+                    <TableRow key={i} className={`border-b border-border last:border-0 hover:bg-muted ${isDuplicate ? 'opacity-50 bg-muted/30' : ''}`}>
+                      <TableCell className="py-3 pl-5 text-xs text-muted-foreground whitespace-nowrap">
+                        {new Date(tx.date).toLocaleDateString(locale)}
+                      </TableCell>
+                      <TableCell className="py-3 text-sm text-foreground">
+                        <div className="flex items-center gap-2">
+                          {tx.description}
+                          {isDuplicate && (
+                            <span className="text-[10px] bg-muted-foreground/20 text-muted-foreground px-1.5 py-0.5 rounded uppercase font-semibold">
+                              Já lançado
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className={`py-3 pr-5 text-right text-sm font-bold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
+                        {tx.type === 'credit' ? '+' : '−'}{formatCurrency(Math.abs(Number(tx.amount)), userCurrency, locale)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
             {previewData.transactions.length > 50 && (

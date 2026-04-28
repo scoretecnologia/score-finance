@@ -22,7 +22,24 @@ from app.services.payee_service import get_or_create_payee
 
 def parse_ofx(content: bytes) -> list[TransactionBase]:
     """Parse OFX file content and return transactions."""
-    ofx = OfxParser.parse(io.BytesIO(content))
+    import re
+    import unicodedata
+    
+    # Decode robustly
+    try:
+        text = content.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = content.decode('latin-1')
+        
+    # Remove accents and convert to pure ASCII. 
+    # This prevents ofxparse/sgmllib from crashing on unexpected bytes.
+    # "GESTÃO" -> "GESTAO", "Transferência" -> "Transferencia"
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('ascii')
+    
+    # Now we safely pass pure ASCII
+    clean_content = text.encode('ascii')
+    ofx = OfxParser.parse(io.BytesIO(clean_content))
+
     transactions = []
 
     for account in ofx.accounts:
@@ -400,7 +417,7 @@ async def import_transactions(
                     Transaction.description == txn_data.description,
                 )
             )
-        if existing.scalar_one_or_none():
+        if existing.scalars().first():
             skipped += 1
             continue
 

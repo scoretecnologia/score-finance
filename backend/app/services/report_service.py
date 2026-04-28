@@ -29,7 +29,7 @@ from app.services.dashboard_service import _get_open_accounts, _account_balance_
 
 async def _asset_value_at(
     session: AsyncSession, company_id: uuid.UUID, cutoff: date,
-    primary_currency: str = "USD",
+    primary_currency: str = "BRL",
 ) -> float:
     """Sum of all active (non-archived, non-sold) asset values at a given date,
     converted to primary currency.
@@ -78,7 +78,7 @@ async def _asset_value_at(
 
 async def _net_worth_at(
     session: AsyncSession, company_id: uuid.UUID, cutoff: date,
-    primary_currency: str = "USD",
+    primary_currency: str = "BRL",
 ) -> ReportDataPoint:
     """Compute a single net worth snapshot at a given date, converted to primary currency."""
     accounts = await _get_open_accounts(session, company_id)
@@ -180,7 +180,7 @@ async def get_net_worth_report(
     company_id: uuid.UUID,
     months: int = 12,
     interval: str = "monthly",
-    currency: str = "USD",
+    currency: str = "BRL",
 ) -> ReportResponse:
     """Build a full ReportResponse for net worth over time."""
     today = date.today()
@@ -348,7 +348,7 @@ async def get_income_expenses_report(
     company_id: uuid.UUID,
     months: int = 12,
     interval: str = "monthly",
-    currency: str = "USD",
+    currency: str = "BRL",
 ) -> ReportResponse:
     """Build a ReportResponse for income vs expenses over time."""
     today = date.today()

@@ -44,7 +44,7 @@ export default function TransactionsPage() {
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   const [filterAccountIds, setFilterAccountIds] = useState<string[]>([])

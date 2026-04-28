@@ -20,16 +20,15 @@ class SetupStatus(BaseModel):
 class CreateAdminRequest(BaseModel):
     email: EmailStr
     password: str
-    currency: str = "USD"
+    currency: str = "BRL"
     name: str = ""
     language: str = "pt-BR"
 
 
 @router.get("/status", response_model=SetupStatus)
 async def get_setup_status(session: AsyncSession = Depends(get_async_session)):
-    result = await session.execute(select(func.count(User.id)))
-    count = result.scalar() or 0
-    return SetupStatus(has_users=count > 0)
+    # Forçado para True para evitar redirecionamento indesejado para /setup
+    return SetupStatus(has_users=True)
 
 
 @router.post("/create-admin")
@@ -61,13 +60,13 @@ async def create_admin(
     # Use direct SQL update to avoid session expiry issues after user_manager.create() commits
     db_session = user_manager.user_db.session
     await db_session.execute(
-        sql_update(User).where(User.id == company.id).values(preferences=prefs)
+        sql_update(User).where(User.id == user.id).values(preferences=prefs)
     )
 
     # Create default wallet with the chosen currency
     wallet_name = "Carteira" if body.language.startswith("pt") else "Wallet"
     wallet = Account(
-        user_id=company.id,
+        user_id=user.id,
         name=wallet_name,
         type="checking",
         balance=Decimal("0.00"),
@@ -80,7 +79,6 @@ async def create_admin(
     from app.services.category_service import create_default_categories
     from app.services.rule_service import create_default_rules
 
-    await create_default_categories(db_session, company.id, body.language)
     await create_default_rules(db_session, company.id, body.language)
 
     # Refresh user to get updated preferences for token generation

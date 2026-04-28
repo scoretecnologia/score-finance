@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 class AssetCreate(BaseModel):
     name: str
     type: str
-    currency: str = "USD"
+    currency: str = "BRL"
     units: Optional[Decimal] = None
     valuation_method: str = "manual"
     purchase_date: Optional[date] = None

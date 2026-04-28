@@ -56,7 +56,7 @@ def _build_account_data(acc: dict, type_mapper) -> AccountData:
         name=acc["name"],
         type=account_type,
         balance=Decimal(str(acc.get("balance", 0))),
-        currency=acc.get("currencyCode", "USD"),
+        currency=acc.get("currencyCode", "BRL"),
         credit_limit=credit_limit,
         statement_close_day=statement_close_day,
         payment_due_day=payment_due_day,

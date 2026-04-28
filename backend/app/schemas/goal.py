@@ -10,7 +10,7 @@ class GoalCreate(BaseModel):
     name: str
     target_amount: Decimal
     current_amount: Decimal = Decimal("0")
-    currency: str = "USD"
+    currency: str = "BRL"
     target_date: Optional[_Date] = None
     tracking_type: str = "manual"
     account_id: Optional[uuid.UUID] = None

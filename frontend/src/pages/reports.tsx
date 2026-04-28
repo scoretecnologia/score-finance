@@ -29,7 +29,7 @@ function formatCurrency(value: number, _currency?: string, _locale?: string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 }
 
-function formatCompact(value: number, currency = 'USD', locale = 'en-US') {
+function formatCompact(value: number, currency = 'BRL', locale = 'pt-BR') {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
@@ -82,7 +82,7 @@ export default function ReportsPage() {
   const { t, i18n } = useTranslation()
   const { mask, privacyMode, MASK } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
 
   const [months, setMonths] = useState(12)

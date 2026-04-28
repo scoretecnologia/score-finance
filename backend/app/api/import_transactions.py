@@ -110,3 +110,45 @@ async def import_transactions(
     )
 
     return {"imported": imported, "skipped": skipped, "import_log_id": str(import_log_id)}
+
+@router.post("/import/check-duplicates", response_model=list[bool])
+async def check_import_duplicates(
+    data: TransactionImportRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    from sqlalchemy import select
+    from app.models.transaction import Transaction
+
+    account = await account_service.get_account(session, data.account_id, company.id)
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+
+    results = []
+    for txn_data in data.transactions:
+        if txn_data.external_id:
+            existing = await session.execute(
+                select(Transaction).where(
+                    Transaction.account_id == data.account_id,
+                    Transaction.external_id == txn_data.external_id,
+                )
+            )
+        else:
+            existing = await session.execute(
+                select(Transaction).where(
+                    Transaction.account_id == data.account_id,
+                    Transaction.date == txn_data.date,
+                    Transaction.amount == txn_data.amount,
+                    Transaction.type == txn_data.type,
+                    Transaction.description == txn_data.description,
+                )
+            )
+        
+        # Using first() instead of scalar_one_or_none() to avoid MultipleResultsFound crashes
+        if existing.scalars().first():
+            results.append(True)
+        else:
+            results.append(False)
+
+    return results

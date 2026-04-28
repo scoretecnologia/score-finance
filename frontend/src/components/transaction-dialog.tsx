@@ -3,7 +3,7 @@ import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/contexts/auth-context'
-import { currencies as currenciesApi, transactions as transactionsApi, settings as settingsApi, payees as payeesApi } from '@/lib/api'
+import { transactions as transactionsApi, settings as settingsApi, payees as payeesApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -290,13 +290,8 @@ function TransactionForm({
 }) {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
-  const { data: supportedCurrencies } = useQuery({
-    queryKey: ['currencies'],
-    queryFn: currenciesApi.list,
-    staleTime: Infinity,
-  })
   const { data: payeesList } = useQuery({
     queryKey: ['payees'],
     queryFn: payeesApi.list,
@@ -306,7 +301,7 @@ function TransactionForm({
   const [amount, setAmount] = useState(seed?.amount?.toString() ?? '')
   const [date, setDate] = useState(seed?.date ?? new Date().toISOString().split('T')[0])
   const [type, setType] = useState<'debit' | 'credit'>(seed?.type ?? 'debit')
-  const [currency, setCurrency] = useState(seed?.currency ?? userCurrency)
+  const currency = 'BRL'
   const [chartAccountId, setChartAccountId] = useState(seed?.chart_account_id ?? '')
   const [payeeId, setPayeeId] = useState(seed?.payee_id ?? '')
   const [accountId, setAccountId] = useState(seed?.account_id ?? accounts[0]?.id ?? '')
@@ -405,13 +400,6 @@ function TransactionForm({
     }
   }
 
-  const handleCurrencyChange = (val: string) => {
-    setCurrency(val)
-    if (val === userCurrency) {
-      setConvertedAmount('')
-      setFxRate('')
-    }
-  }
 
   return (
     <form
@@ -513,7 +501,7 @@ function TransactionForm({
           <p className="text-xs text-muted-foreground">{transaction.payee}</p>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>{t('transactions.amount')}</Label>
           <Input
@@ -524,19 +512,6 @@ function TransactionForm({
             required
             disabled={isSynced}
           />
-        </div>
-        <div className="space-y-2">
-          <Label>{t('transactions.currency')}</Label>
-          <select
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background h-9 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
-            value={currency}
-            onChange={(e) => handleCurrencyChange(e.target.value)}
-            disabled={isSynced}
-          >
-            {(supportedCurrencies ?? [{ code: userCurrency, symbol: userCurrency, name: userCurrency, flag: '' }]).map((c) => (
-              <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-            ))}
-          </select>
         </div>
         <div className="space-y-2">
           <Label>{t('transactions.date')}</Label>

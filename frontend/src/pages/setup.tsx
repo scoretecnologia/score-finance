@@ -25,22 +25,14 @@ export default function SetupPage() {
   const [currency] = useState('BRL')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
     if (token) {
       navigate('/', { replace: true })
       return
     }
-    setup.status().then(({ has_users }) => {
-      if (has_users) {
-        navigate('/login', { replace: true })
-      } else {
-        setChecking(false)
-      }
-    }).catch(() => {
-      setChecking(false)
-    })
+    // Força o redirecionamento imediato para o login
+    navigate('/login', { replace: true })
   }, [navigate, token])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,14 +55,6 @@ export default function SetupPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  if (checking) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    )
   }
 
   return (

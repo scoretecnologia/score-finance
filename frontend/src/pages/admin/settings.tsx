@@ -39,7 +39,7 @@ export default function AdminSettingsPage() {
   const [formPassword, setFormPassword] = useState('')
   const [formIsAdmin, setFormIsAdmin] = useState(false)
   const [formLanguage, setFormLanguage] = useState('en')
-  const [formCurrency, setFormCurrency] = useState('BRL')
+
 
   const [editEmail, setEditEmail] = useState('')
   const [editName, setEditName] = useState('')
@@ -158,7 +158,7 @@ export default function AdminSettingsPage() {
     setFormPassword('')
     setFormIsAdmin(false)
     setFormLanguage('en')
-    setFormCurrency('BRL')
+
   }
 
   function openEdit(u: AdminUser) {
@@ -415,7 +415,7 @@ export default function AdminSettingsPage() {
               email: formEmail,
               password: formPassword,
               is_superuser: formIsAdmin,
-              preferences: { language: formLanguage, currency_display: formCurrency },
+              preferences: { language: formLanguage, currency_display: 'BRL' },
             })
           }}>
             <div className="space-y-4 py-2">
@@ -431,8 +431,7 @@ export default function AdminSettingsPage() {
                 <Label className="text-[13px]">{t('auth.password')}</Label>
                 <Input type="password" value={formPassword} onChange={(e) => setFormPassword(e.target.value)} required minLength={8} className="h-10 rounded-lg" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
+              <div className="space-y-1.5">
                   <Label className="text-[13px]">{t('setup.language')}</Label>
                   <select
                     value={formLanguage}
@@ -443,11 +442,6 @@ export default function AdminSettingsPage() {
                     <option value="pt-BR">Português (BR)</option>
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[13px]">{t('setup.currency')}</Label>
-                  <Input value="BRL" disabled className="h-10 rounded-lg bg-muted text-muted-foreground" />
-                </div>
-              </div>
               <button
                 type="button"
                 onClick={() => setFormIsAdmin(!formIsAdmin)}

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 class RecurringTransactionCreate(BaseModel):
     description: str
     amount: Decimal
-    currency: str = "USD"
+    currency: str = "BRL"
     type: str  # debit, credit
     frequency: str  # monthly, weekly, yearly
     day_of_month: Optional[int] = None

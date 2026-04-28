@@ -85,8 +85,7 @@ async def create_category(session: AsyncSession, company_id: uuid.UUID, data: Ca
     category = Category(company_id=company_id, **data.model_dump())
     session.add(category)
     await session.commit()
-    await session.refresh(category)
-    return category
+    return await get_category(session, category.id, company_id)
 
 
 async def update_category(

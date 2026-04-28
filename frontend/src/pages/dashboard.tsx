@@ -72,7 +72,7 @@ export default function DashboardPage() {
   const { t, i18n } = useTranslation()
   const { mask, privacyMode, MASK } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const displayName = user?.preferences?.display_name || ''
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
 

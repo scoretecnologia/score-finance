@@ -11,6 +11,9 @@ from app.models.transaction_attachment import TransactionAttachment
 from app.models.account import Account
 from app.models.bank_connection import BankConnection
 from app.models.payee import Payee
+from app.models.category import Category
+from app.models.chart_account import ChartAccount
+
 from app.schemas.transaction import TransactionCreate, TransactionUpdate, TransferCreate
 from app.services.credit_card_service import apply_effective_date
 from app.services.rule_service import apply_rules_to_transaction
@@ -82,7 +85,12 @@ async def get_transactions(
                 BankConnection.company_id == company_id,
             )
         )
-        .options(selectinload(Transaction.category), selectinload(Transaction.account), selectinload(Transaction.payee_entity))
+        .options(
+            selectinload(Transaction.category).selectinload(Category.chart_accounts),
+            selectinload(Transaction.chart_account),
+            selectinload(Transaction.account),
+            selectinload(Transaction.payee_entity)
+        )
     )
 
     # Exclude opening_balance transactions from the normal list unless explicitly requested
@@ -174,7 +182,12 @@ async def get_transaction(
                 BankConnection.company_id == company_id,
             ),
         )
-        .options(selectinload(Transaction.category), selectinload(Transaction.payee_entity))
+        .options(
+            selectinload(Transaction.category).selectinload(Category.chart_accounts),
+            selectinload(Transaction.chart_account),
+            selectinload(Transaction.account),
+            selectinload(Transaction.payee_entity)
+        )
     )
     transaction = result.scalar_one_or_none()
     if transaction:
@@ -384,7 +397,8 @@ async def get_transfer_candidates(
             Transaction.date <= to_date,
         )
         .options(
-            selectinload(Transaction.category),
+            selectinload(Transaction.category).selectinload(Category.chart_accounts),
+            selectinload(Transaction.chart_account),
             selectinload(Transaction.account),
             selectinload(Transaction.payee_entity),
         )

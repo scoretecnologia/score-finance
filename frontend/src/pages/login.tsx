@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '@/contexts/auth-context'
-import { setup, admin as adminApi } from '@/lib/api'
+import { admin as adminApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -29,11 +29,7 @@ export default function LoginPage() {
       navigate('/', { replace: true })
       return
     }
-    setup.status().then(({ has_users }) => {
-      if (!has_users) {
-        navigate('/setup', { replace: true })
-      }
-    }).catch(() => {})
+    // Verificação de setup removida para forçar sempre o login
     adminApi.registrationStatus().catch(() => {})
   }, [navigate, token])
 

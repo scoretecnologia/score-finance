@@ -35,7 +35,7 @@ async def create_chart_account(session: AsyncSession, company_id: uuid.UUID, dat
     if not category:
         raise ValueError("Category not found")
     if not category.is_synthetic:
-        raise ValueError("Cannot add chart account to an analytical category. Category must be synthetic.")
+        category.is_synthetic = True
 
     chart_account = ChartAccount(company_id=company_id, **data.model_dump())
     session.add(chart_account)
@@ -60,7 +60,7 @@ async def update_chart_account(
         if not category:
             raise ValueError("Category not found")
         if not category.is_synthetic:
-            raise ValueError("Cannot move chart account to an analytical category. Category must be synthetic.")
+            category.is_synthetic = True
 
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(chart_account, key, value)

@@ -1,0 +1,19 @@
+{
+  "name": "score-finance",
+  "version": "1.0.0",
+  "description": "Score Finance - Local Development without Docker",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"api,web\" -c \"magenta,cyan\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && (\"C:\\Users\\Lucas Vitorino\\AppData\\Local\\Python\\bin\\python.exe\" -m uvicorn app.main:app --reload --port 8000)",
+    "dev:frontend": "cd frontend && npm run dev",
+    "worker": "cd backend && \"C:\\Users\\Lucas Vitorino\\AppData\\Local\\Python\\bin\\python.exe\" -m celery -A app.worker worker --loglevel=info",
+    "beat": "cd backend && \"C:\\Users\\Lucas Vitorino\\AppData\\Local\\Python\\bin\\python.exe\" -m celery -A app.worker beat --loglevel=info",
+    "migrate": "cd backend && \"C:\\Users\\Lucas Vitorino\\AppData\\Local\\Python\\bin\\python.exe\" -m alembic upgrade head",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && \"C:\\Users\\Lucas Vitorino\\AppData\\Local\\Python\\bin\\python.exe\" -m pip install -e .",
+    "setup": "node scripts/setup-local.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

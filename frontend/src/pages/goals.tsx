@@ -2,7 +2,7 @@ import { createElement, useState } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { goals as goalsApi, accounts as accountsApi, assets as assetsApi, currencies as currenciesApi } from '@/lib/api'
+import { goals as goalsApi, accounts as accountsApi, assets as assetsApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -102,8 +102,7 @@ function daysUntil(dateStr: string): number {
 export default function GoalsPage() {
   const { t, i18n } = useTranslation()
   const { mask } = usePrivacyMode()
-  const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  useAuth()
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -128,11 +127,6 @@ export default function GoalsPage() {
     queryFn: () => assetsApi.list(),
   })
 
-  const { data: supportedCurrencies } = useQuery({
-    queryKey: ['currencies'],
-    queryFn: currenciesApi.list,
-    staleTime: Infinity,
-  })
 
   const createMutation = useMutation({
     mutationFn: (data: Partial<Goal>) => goalsApi.create(data),
@@ -372,7 +366,7 @@ export default function GoalsPage() {
               const payload: Record<string, unknown> = {
                 name: formData.get('name') as string,
                 target_amount: parseFloat(formData.get('target_amount') as string),
-                currency: (formData.get('currency') as string) || userCurrency,
+                currency: 'BRL',
                 tracking_type: formData.get('tracking_type') as string,
                 target_date: (formData.get('target_date') as string) || null,
                 icon: selectedIcon || null,
@@ -413,20 +407,6 @@ export default function GoalsPage() {
                   defaultValue={editing?.target_amount?.toString() ?? ''}
                   required
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>{t('goals.currency')}</Label>
-                <select
-                  name="currency"
-                  defaultValue={editing?.currency ?? userCurrency}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {supportedCurrencies?.map((c: { code: string; name: string; flag: string }) => (
-                    <option key={c.code} value={c.code}>
-                      {c.flag} {c.name} ({c.code})
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

@@ -54,7 +54,7 @@ class TransactionRead(TransactionBase):
     category: Optional[CategoryRead] = None
     chart_account_id: Optional[uuid.UUID] = None
     chart_account: Optional[ChartAccountRead] = None
-    currency: str = "USD"
+    currency: str = "BRL"
     source: str
     status: str = "posted"
     payee: Optional[str] = None

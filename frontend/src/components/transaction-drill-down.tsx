@@ -50,7 +50,7 @@ export function TransactionDrillDown({
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const { mask } = usePrivacyMode()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const panelRef = useRef<HTMLDivElement>(null)
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { recurring as recurringApi, accounts as accountsApi, currencies as currenciesApi } from '@/lib/api'
+import { recurring as recurringApi, accounts as accountsApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -63,7 +63,7 @@ function RecurringTab() {
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<RecurringTransaction | null>(null)
@@ -262,16 +262,10 @@ function RecurringForm({
   loading: boolean
 }) {
   const { t } = useTranslation()
-  const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
-  const { data: supportedCurrencies } = useQuery({
-    queryKey: ['currencies'],
-    queryFn: currenciesApi.list,
-    staleTime: Infinity,
-  })
+  useAuth()
   const [description, setDescription] = useState(recurring?.description ?? '')
   const [amount, setAmount] = useState(recurring?.amount?.toString() ?? '')
-  const [currency, setCurrency] = useState(recurring?.currency ?? userCurrency)
+  const currency = 'BRL'
   const [type, setType] = useState<'debit' | 'credit'>(recurring?.type ?? 'debit')
   const [frequency, setFrequency] = useState(recurring?.frequency ?? 'monthly')
   const [dayOfMonth, setDayOfMonth] = useState(recurring?.day_of_month?.toString() ?? '')
@@ -307,18 +301,10 @@ function RecurringForm({
         <Label>{t('recurring.description')}</Label>
         <Input value={description} onChange={(e) => setDescription(e.target.value)} required />
       </div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>{t('recurring.amount')}</Label>
           <Input type="number" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-        </div>
-        <div className="space-y-2">
-          <Label>{t('recurring.currency')}</Label>
-          <select className={selectClass} value={currency} onChange={(e) => setCurrency(e.target.value)}>
-            {(supportedCurrencies ?? [{ code: userCurrency, symbol: userCurrency, name: userCurrency, flag: '' }]).map((c) => (
-              <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-            ))}
-          </select>
         </div>
         <div className="space-y-2">
           <Label>{t('recurring.type')}</Label>

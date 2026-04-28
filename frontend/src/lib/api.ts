@@ -34,7 +34,7 @@ import type {
 } from '@/types'
 
 const api = axios.create({
-  baseURL: '/_/backend/api',
+  baseURL: import.meta.env.PROD ? '/_/backend/api' : '/api',
 })
 
 api.interceptors.request.use((config) => {
@@ -70,7 +70,7 @@ export const setup = {
     const { data } = await api.get('/setup/status')
     return data
   },
-  createAdmin: async (email: string, password: string, currency = 'USD', name = '', language = 'en'): Promise<{ access_token: string }> => {
+  createAdmin: async (email: string, password: string, currency = 'BRL', name = '', language = 'pt-BR'): Promise<{ access_token: string }> => {
     const { data } = await api.post('/setup/create-admin', { email, password, currency, name, language })
     return data
   },
@@ -353,6 +353,10 @@ export const transactions = {
   },
   import: async (account_id: string, transactions: Transaction[], filename: string, detected_format: string): Promise<{ imported: number; skipped: number; import_log_id: string }> => {
     const { data } = await api.post('/transactions/import', { account_id, transactions, filename, detected_format })
+    return data
+  },
+  checkDuplicates: async (account_id: string, transactions: Transaction[]): Promise<boolean[]> => {
+    const { data } = await api.post('/transactions/import/check-duplicates', { account_id, transactions })
     return data
   },
   export: async (params?: {

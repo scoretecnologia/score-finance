@@ -8,19 +8,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { ShellLogo } from '@/components/shell-logo'
-import { cn } from '@/lib/utils'
 import type { AxiosError } from 'axios'
 
-const currencies = [
-  { code: 'USD', flag: '\u{1F1FA}\u{1F1F8}', symbol: '$' },
-  { code: 'EUR', flag: '\u{1F1EA}\u{1F1FA}', symbol: '\u20AC' },
-  { code: 'GBP', flag: '\u{1F1EC}\u{1F1E7}', symbol: '\u00A3' },
-  { code: 'BRL', flag: '\u{1F1E7}\u{1F1F7}', symbol: 'R$' },
-  { code: 'CAD', flag: '\u{1F1E8}\u{1F1E6}', symbol: 'C$' },
-  { code: 'AUD', flag: '\u{1F1E6}\u{1F1FA}', symbol: 'A$' },
-  { code: 'CHF', flag: '\u{1F1E8}\u{1F1ED}', symbol: 'Fr' },
-  { code: 'ARS', flag: '\u{1F1E6}\u{1F1F7}', symbol: '$' },
-] as const
+
 
 export default function RegisterPage() {
   const { t, i18n } = useTranslation()
@@ -29,7 +19,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [currency, setCurrency] = useState('USD')
+
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -57,7 +47,7 @@ export default function RegisterPage() {
     try {
       const lang = i18n.language?.startsWith('pt') ? 'pt-BR' : 'en'
       await register(email, password, {
-        currency_display: currency,
+        currency_display: 'BRL',
         language: lang,
       })
       navigate('/')
@@ -122,28 +112,7 @@ export default function RegisterPage() {
                 required
               />
             </div>
-            <div className="space-y-2 pt-1">
-              <Label className="text-sm">{t('auth.currency')}</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {currencies.map(({ code, flag, symbol }) => (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() => setCurrency(code)}
-                    className={cn(
-                      'flex flex-col items-center gap-1 py-2.5 rounded-lg border transition-all',
-                      currency === code
-                        ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/30'
-                        : 'border-border text-muted-foreground hover:border-foreground/20 hover:text-foreground'
-                    )}
-                  >
-                    <span className="text-lg leading-none">{flag}</span>
-                    <span className="text-[11px] font-bold">{code}</span>
-                    <span className="text-[10px] opacity-60">{symbol}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+
           </CardContent>
           <CardFooter className="flex flex-col gap-4 px-8 pb-8 pt-2">
             <Button type="submit" className="w-full" disabled={isLoading}>

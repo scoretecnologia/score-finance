@@ -16,7 +16,7 @@ class DashboardSummary(BaseModel):
     pending_categorization_amount: float
     assets_value: dict[str, float] = {}  # currency -> total asset value
     assets_value_primary: float = 0.0
-    primary_currency: str = "USD"
+    primary_currency: str = "BRL"
 
 
 class SpendingByCategory(BaseModel):

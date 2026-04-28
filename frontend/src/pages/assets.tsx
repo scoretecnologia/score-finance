@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { assets, currencies as currenciesApi } from '@/lib/api'
+import { assets } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,14 +68,8 @@ export default function AssetsPage() {
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
-
-  const { data: supportedCurrencies } = useQuery({
-    queryKey: ['currencies'],
-    queryFn: currenciesApi.list,
-    staleTime: Infinity,
-  })
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null)
@@ -86,7 +80,7 @@ export default function AssetsPage() {
   // Form state
   const [formName, setFormName] = useState('')
   const [formType, setFormType] = useState<string>('other')
-  const [formCurrency, setFormCurrency] = useState(userCurrency)
+  const formCurrency = 'BRL'
   const [formMethod, setFormMethod] = useState<string>('manual')
   const [formPurchaseDate, setFormPurchaseDate] = useState<string>('')
   const [formPurchasePrice, setFormPurchasePrice] = useState('')
@@ -189,7 +183,6 @@ export default function AssetsPage() {
     setEditingAsset(null)
     setFormName('')
     setFormType('other')
-    setFormCurrency(userCurrency)
     setFormMethod('manual')
     setFormPurchaseDate('')
     setFormPurchasePrice('')
@@ -207,7 +200,6 @@ export default function AssetsPage() {
     setEditingAsset(asset)
     setFormName(asset.name)
     setFormType(asset.type)
-    setFormCurrency(asset.currency)
     setFormMethod(asset.valuation_method)
     setFormPurchaseDate(asset.purchase_date ?? '')
     setFormPurchasePrice(asset.purchase_price?.toString() ?? '')
@@ -439,33 +431,19 @@ export default function AssetsPage() {
             </div>
 
             {/* Type + Currency */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t('assets.type')}</Label>
-                <select
-                  className="bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary px-3 py-2 rounded-lg text-foreground text-sm w-full"
-                  value={formType}
-                  onChange={e => setFormType(e.target.value)}
-                >
-                  {ASSET_TYPES.map(at => (
-                    <option key={at} value={at}>
-                      {t(`assets.type${at.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^./, c => c.toUpperCase())}`)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('assets.currency')}</Label>
-                <select
-                  className="bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary px-3 py-2 rounded-lg text-foreground text-sm w-full"
-                  value={formCurrency}
-                  onChange={e => setFormCurrency(e.target.value)}
-                >
-                  {(supportedCurrencies ?? [{ code: userCurrency, symbol: userCurrency, name: userCurrency, flag: '' }]).map((c) => (
-                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                  ))}
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label>{t('assets.type')}</Label>
+              <select
+                className="bg-card border border-border focus:outline-none focus:ring-2 focus:ring-primary px-3 py-2 rounded-lg text-foreground text-sm w-full"
+                value={formType}
+                onChange={e => setFormType(e.target.value)}
+              >
+                {ASSET_TYPES.map(at => (
+                  <option key={at} value={at}>
+                    {t(`assets.type${at.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()).replace(/^./, c => c.toUpperCase())}`)}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Valuation Method — locked on edit */}

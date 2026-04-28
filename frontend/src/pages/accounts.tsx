@@ -3,7 +3,7 @@ import { getAccountName } from '@/lib/account-utils'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { accounts, connections, currencies } from '@/lib/api'
+import { accounts, connections } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -70,7 +70,7 @@ export default function AccountsPage() {
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
+  const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Account | null>(null)
@@ -604,18 +604,12 @@ function AccountDialog({
   loading: boolean
 }) {
   const { t } = useTranslation()
-  const { user } = useAuth()
-  const userCurrency = user?.preferences?.currency_display ?? 'USD'
-  const { data: supportedCurrencies } = useQuery({
-    queryKey: ['currencies'],
-    queryFn: currencies.list,
-    staleTime: Infinity,
-  })
+  useAuth()
   const [name, setName] = useState(account?.name ?? '')
   const [displayName, setDisplayName] = useState(account?.display_name ?? '')
   const [type, setType] = useState(account?.type ?? 'checking')
   const [balance, setBalance] = useState(account?.balance?.toString() ?? '0')
-  const [currency, setCurrency] = useState(account?.currency ?? userCurrency)
+  const [currency, setCurrency] = useState('BRL')
   const [balanceDate, setBalanceDate] = useState(new Date().toISOString().slice(0, 10))
   const [creditLimit, setCreditLimit] = useState(account?.credit_limit?.toString() ?? '')
   const [statementCloseDay, setStatementCloseDay] = useState(account?.statement_close_day?.toString() ?? '')
@@ -626,7 +620,7 @@ function AccountDialog({
     setDisplayName(account?.display_name ?? '')
     setType(account?.type ?? 'checking')
     setBalance(account?.balance?.toString() ?? '0')
-    setCurrency(account?.currency ?? userCurrency)
+    setCurrency('BRL')
     setBalanceDate(new Date().toISOString().slice(0, 10))
     setCreditLimit(account?.credit_limit?.toString() ?? '')
     setStatementCloseDay(account?.statement_close_day?.toString() ?? '')
@@ -695,18 +689,7 @@ function AccountDialog({
                     <option value="wallet">{t('accounts.typeWallet')}</option>
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <Label>{t('accounts.currency')}</Label>
-                  <select
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    value={currency}
-                    onChange={(e) => setCurrency(e.target.value)}
-                  >
-                    {(supportedCurrencies ?? [{ code: userCurrency, symbol: userCurrency, name: userCurrency, flag: '' }]).map((c) => (
-                      <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
-                    ))}
-                  </select>
-                </div>
+                  {/* Currency selector removed, defaults to BRL */}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

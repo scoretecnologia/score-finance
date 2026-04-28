@@ -9,7 +9,7 @@ class UserPreferences(BaseModel):
     language: str = "en"
     date_format: str = "MM/DD/YYYY"
     timezone: str = "UTC"
-    currency_display: str = "USD"
+    currency_display: str = "BRL"
     onboarding_completed: bool = False
 
 

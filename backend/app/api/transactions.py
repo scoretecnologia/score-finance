@@ -4,6 +4,7 @@ import uuid
 from datetime import date
 from typing import List, Optional
 
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -84,6 +85,7 @@ async def list_transactions(
     primary_currency = user.primary_currency
     items = [_tag_fx_fallback(TransactionRead.model_validate(tx, from_attributes=True), primary_currency) for tx in transactions]
     return PaginatedTransactions(items=items, total=total, page=page, limit=limit)
+
 
 
 @router.get("/export")
