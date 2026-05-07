@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -101,7 +101,7 @@ export default function ImportPage() {
       fileName ?? '',
       previewData.detected_format,
       (data) => {
-        setImportProgress(prev => ({
+        setImportProgress(() => ({
           active: true,
           phase: data.phase,
           current: data.current,
