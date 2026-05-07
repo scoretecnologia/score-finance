@@ -378,6 +378,66 @@ export const transactions = {
     const { data } = await api.post('/transactions/import', { account_id, transactions, filename, detected_format })
     return data
   },
+  importStream: (
+    account_id: string,
+    transactions: Transaction[],
+    filename: string,
+    detected_format: string,
+    onProgress: (data: { phase: string; current: number; total: number; imported: number; skipped: number; import_log_id?: string; message?: string }) => void,
+  ): { promise: Promise<void>; abort: () => void } => {
+    const controller = new AbortController()
+    const token = localStorage.getItem('token')
+    const companyId = localStorage.getItem('score-finance.company-id')
+    const baseUrl = import.meta.env.PROD ? '/_/backend/api' : '/api'
+    const url = new URL(`${baseUrl}/transactions/import/stream`, window.location.origin)
+    if (companyId) url.searchParams.set('company_id', companyId)
+
+    const promise = (async () => {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ account_id, transactions, filename, detected_format }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.detail || 'Import failed')
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('No response body')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+              onProgress(data)
+            } catch {
+              // Skip malformed SSE lines
+            }
+          }
+        }
+      }
+    })()
+
+    return { promise, abort: () => controller.abort() }
+  },
   checkDuplicates: async (account_id: string, transactions: Transaction[]): Promise<boolean[]> => {
     const { data } = await api.post('/transactions/import/check-duplicates', { account_id, transactions })
     return data

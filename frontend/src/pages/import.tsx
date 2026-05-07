@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Transaction, ImportLog } from '@/types'
-import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Settings2, Download } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Settings2, Download, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
 import { useAuth } from '@/contexts/auth-context'
@@ -54,6 +54,17 @@ export default function ImportPage() {
   const [csvInflowColumn, setCsvInflowColumn] = useState('')
   const [csvOutflowColumn, setCsvOutflowColumn] = useState('')
 
+  // Import progress state
+  const [importProgress, setImportProgress] = useState<{
+    active: boolean
+    phase: string
+    current: number
+    total: number
+    imported: number
+    skipped: number
+  } | null>(null)
+  const abortRef = useRef<(() => void) | null>(null)
+
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list(),
@@ -80,27 +91,58 @@ export default function ImportPage() {
     },
   })
 
-  const importMutation = useMutation({
-    mutationFn: () => transactionsApi.import(selectedAccount, previewData!.transactions, fileName ?? '', previewData!.detected_format),
-    onSuccess: (data) => {
-      invalidateFinancialQueries(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['import-logs'] })
-      const msg = data.skipped > 0
-        ? t('import.importedWithSkipped', { imported: data.imported, skipped: data.skipped })
-        : `${data.imported} ${t('import.transactionsImported')}`
-      toast.success(msg)
-      setPreviewData(null)
-      setSelectedAccount('')
-      setFileName(null)
-      setCurrentFile(null)
-      resetCsvOptions()
-      if (fileInputRef.current) fileInputRef.current.value = ''
-    },
-    onError: (error: unknown) => {
-      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      toast.error(detail || t('import.importError'))
-    },
-  })
+  const startStreamingImport = useCallback(() => {
+    if (!previewData || !selectedAccount) return
+    setImportProgress({ active: true, phase: 'preparing', current: 0, total: previewData.transactions.length, imported: 0, skipped: 0 })
+
+    const { promise, abort } = transactionsApi.importStream(
+      selectedAccount,
+      previewData.transactions,
+      fileName ?? '',
+      previewData.detected_format,
+      (data) => {
+        setImportProgress(prev => ({
+          active: true,
+          phase: data.phase,
+          current: data.current,
+          total: data.total,
+          imported: data.imported,
+          skipped: data.skipped,
+        }))
+
+        if (data.phase === 'done') {
+          setTimeout(() => {
+            invalidateFinancialQueries(queryClient)
+            queryClient.invalidateQueries({ queryKey: ['import-logs'] })
+            const msg = data.skipped > 0
+              ? t('import.importedWithSkipped', { imported: data.imported, skipped: data.skipped })
+              : `${data.imported} ${t('import.transactionsImported')}`
+            toast.success(msg)
+            setImportProgress(null)
+            setPreviewData(null)
+            setSelectedAccount('')
+            setFileName(null)
+            setCurrentFile(null)
+            resetCsvOptions()
+            if (fileInputRef.current) fileInputRef.current.value = ''
+          }, 1200)
+        }
+
+        if (data.phase === 'error') {
+          toast.error(data.message || t('import.importError'))
+          setImportProgress(null)
+        }
+      },
+    )
+
+    abortRef.current = abort
+    promise.catch((err) => {
+      if (err.name !== 'AbortError') {
+        toast.error(err.message || t('import.importError'))
+        setImportProgress(null)
+      }
+    })
+  }, [previewData, selectedAccount, fileName, queryClient, t, resetCsvOptions])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => importLogsApi.delete(id),
@@ -446,14 +488,12 @@ export default function ImportPage() {
               {t('common.cancel')}
             </button>
             <Button
-              onClick={() => importMutation.mutate()}
-              disabled={!selectedAccount || importMutation.isPending}
+              onClick={startStreamingImport}
+              disabled={!selectedAccount || !!importProgress}
               className="gap-2"
             >
               <Upload size={14} />
-              {importMutation.isPending
-                ? t('common.loading')
-                : t('import.importButton', { count: previewData.transactions.length })}
+              {t('import.importButton', { count: previewData.transactions.length })}
             </Button>
           </div>
         </div>
@@ -521,6 +561,84 @@ export default function ImportPage() {
           </div>
         )}
       </div>
+
+      {/* Import progress modal */}
+      <Dialog open={!!importProgress} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          {importProgress && (() => {
+            const pct = importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0
+            const isDone = importProgress.phase === 'done'
+            const radius = 54
+            const circumference = 2 * Math.PI * radius
+            const offset = circumference - (pct / 100) * circumference
+            return (
+              <div className="flex flex-col items-center py-6 gap-5">
+                {/* Circular progress */}
+                <div className="relative w-36 h-36">
+                  <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
+                    <circle cx="64" cy="64" r={radius} fill="none" stroke="currentColor" strokeWidth="8" className="text-muted/30" />
+                    <circle
+                      cx="64" cy="64" r={radius} fill="none"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={offset}
+                      className={isDone ? 'text-emerald-500' : 'text-primary'}
+                      style={{ transition: 'stroke-dashoffset 0.4s ease, stroke 0.3s ease' }}
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    {isDone ? (
+                      <CheckCircle2 size={32} className="text-emerald-500 animate-in zoom-in duration-300" />
+                    ) : (
+                      <>
+                        <span className="text-3xl font-bold text-foreground tabular-nums">{pct}%</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">
+                          {importProgress.current}/{importProgress.total}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Phase label */}
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-foreground flex items-center gap-2 justify-center">
+                    {!isDone && <Loader2 size={14} className="animate-spin text-primary" />}
+                    {importProgress.phase === 'preparing' && t('import.progressPreparing')}
+                    {importProgress.phase === 'importing' && t('import.progressImporting')}
+                    {importProgress.phase === 'finalizing' && t('import.progressFinalizing')}
+                    {importProgress.phase === 'done' && t('import.progressDone')}
+                  </p>
+                  {fileName && <p className="text-xs text-muted-foreground mt-1">{fileName}</p>}
+                </div>
+
+                {/* Stats */}
+                <div className="flex items-center gap-6 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>{importProgress.imported} {t('import.progressImported')}</span>
+                  </div>
+                  {importProgress.skipped > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span>{importProgress.skipped} {t('import.progressSkipped')}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Progress bar (thin) */}
+                <div className="w-full bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ease-out ${isDone ? 'bg-emerald-500' : 'bg-primary'}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation dialog */}
       <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>

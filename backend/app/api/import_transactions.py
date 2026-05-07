@@ -1,7 +1,9 @@
+import json
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
@@ -111,6 +113,41 @@ async def import_transactions(
 
     return {"imported": imported, "skipped": skipped, "import_log_id": str(import_log_id)}
 
+
+@router.post("/import/stream")
+async def import_transactions_stream(
+    data: TransactionImportRequest,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    """Import transactions with real-time progress via Server-Sent Events."""
+    # Verify account belongs to user
+    account = await account_service.get_account(session, data.account_id, company.id)
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
+
+    async def event_generator():
+        try:
+            async for progress in import_service.import_transactions_streamed(
+                session, company.id, data.account_id, data.transactions, "import",
+                filename=data.filename, detected_format=data.detected_format,
+            ):
+                yield f"data: {json.dumps(progress)}\n\n"
+        except Exception as e:
+            logger.error("Streaming import error: %s", e, exc_info=True)
+            yield f"data: {json.dumps({'phase': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.post("/import/check-duplicates", response_model=list[bool])
 async def check_import_duplicates(
     data: TransactionImportRequest,
@@ -129,20 +166,20 @@ async def check_import_duplicates(
     for txn_data in data.transactions:
         if txn_data.external_id:
             existing = await session.execute(
-                select(Transaction).where(
+                select(Transaction.id).where(
                     Transaction.account_id == data.account_id,
                     Transaction.external_id == txn_data.external_id,
-                )
+                ).limit(1)
             )
         else:
             existing = await session.execute(
-                select(Transaction).where(
+                select(Transaction.id).where(
                     Transaction.account_id == data.account_id,
                     Transaction.date == txn_data.date,
                     Transaction.amount == txn_data.amount,
                     Transaction.type == txn_data.type,
                     Transaction.description == txn_data.description,
-                )
+                ).limit(1)
             )
         
         # Using first() instead of scalar_one_or_none() to avoid MultipleResultsFound crashes

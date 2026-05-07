@@ -392,6 +392,16 @@ async def import_transactions(
     account = account_result.scalar_one_or_none()
     account_currency = account.currency if account else get_settings().default_currency
 
+    # Pre-load rules once to avoid N+1 queries
+    from app.models.rule import Rule
+    from app.services.rule_engine import evaluate_conditions, apply_rule_actions
+    rules_result = await session.execute(
+        select(Rule)
+        .where(Rule.company_id == company_id, Rule.is_active == True)
+        .order_by(Rule.priority, Rule.id)
+    )
+    rules = list(rules_result.scalars().all())
+
     imported = 0
     skipped = 0
     for txn_data in transactions:
@@ -451,7 +461,14 @@ async def import_transactions(
 
         session.add(transaction)
         await session.flush()
-        await apply_rules_to_transaction(session, company_id, transaction)
+
+        # Apply pre-loaded rules inline (avoids re-querying rules per txn)
+        category_set = transaction.category_id is not None
+        for rule in rules:
+            conditions = rule.conditions or []
+            actions = rule.actions or []
+            if evaluate_conditions(rule.conditions_op, conditions, transaction):
+                category_set = apply_rule_actions(actions, transaction, category_set)
 
         # Only auto-convert if no fx_rate was provided by the CSV
         if not txn_data.fx_rate:
@@ -464,6 +481,161 @@ async def import_transactions(
 
     await session.commit()
     return imported, skipped, import_log.id
+
+
+async def import_transactions_streamed(
+    session: AsyncSession,
+    company_id: uuid.UUID,
+    account_id: uuid.UUID,
+    transactions: list[TransactionBase],
+    source: str,
+    filename: str = "",
+    detected_format: str = "",
+):
+    """Import transactions with progress updates.
+
+    This is an async generator that yields progress dicts:
+      {"phase": "preparing"|"importing"|"finalizing"|"done"|"error",
+       "current": int, "total": int, "imported": int, "skipped": int, ...}
+    """
+    import json
+    from app.models.import_log import ImportLog
+
+    total = len(transactions)
+
+    # Phase: preparing
+    yield {"phase": "preparing", "current": 0, "total": total, "imported": 0, "skipped": 0}
+
+    # Calculate summaries
+    total_credit = sum(t.amount for t in transactions if t.type == "credit")
+    total_debit = sum(t.amount for t in transactions if t.type == "debit")
+
+    # Create import log
+    import_log = ImportLog(
+        company_id=company_id,
+        account_id=account_id,
+        filename=filename,
+        format=detected_format,
+        transaction_count=total,
+        total_credit=total_credit,
+        total_debit=total_debit,
+    )
+    session.add(import_log)
+    await session.flush()
+
+    # Look up account
+    account_result = await session.execute(
+        select(Account).where(Account.id == account_id)
+    )
+    account = account_result.scalar_one_or_none()
+    account_currency = account.currency if account else get_settings().default_currency
+
+    # Pre-load rules once
+    from app.models.rule import Rule
+    from app.services.rule_engine import evaluate_conditions, apply_rule_actions
+    rules_result = await session.execute(
+        select(Rule)
+        .where(Rule.company_id == company_id, Rule.is_active == True)
+        .order_by(Rule.priority, Rule.id)
+    )
+    rules = list(rules_result.scalars().all())
+
+    # Phase: importing
+    imported = 0
+    skipped = 0
+
+    # Determine progress report interval (report every ~2-5% or every 5 items, whichever is smaller)
+    report_interval = max(1, min(5, total // 20))
+
+    for idx, txn_data in enumerate(transactions):
+        txn_currency = txn_data.currency or account_currency
+
+        # Duplicate detection
+        if txn_data.external_id:
+            existing = await session.execute(
+                select(Transaction.id).where(
+                    Transaction.account_id == account_id,
+                    Transaction.external_id == txn_data.external_id,
+                ).limit(1)
+            )
+        else:
+            existing = await session.execute(
+                select(Transaction.id).where(
+                    Transaction.account_id == account_id,
+                    Transaction.date == txn_data.date,
+                    Transaction.amount == txn_data.amount,
+                    Transaction.type == txn_data.type,
+                    Transaction.description == txn_data.description,
+                ).limit(1)
+            )
+        if existing.scalars().first():
+            skipped += 1
+            if (idx + 1) % report_interval == 0 or idx == total - 1:
+                yield {"phase": "importing", "current": idx + 1, "total": total, "imported": imported, "skipped": skipped}
+            continue
+
+        # Resolve payee
+        import_payee_id = None
+        import_payee_raw = getattr(txn_data, "payee_raw", None)
+        if import_payee_raw:
+            import_payee_entity = await get_or_create_payee(session, company_id, import_payee_raw)
+            import_payee_id = import_payee_entity.id
+
+        transaction = Transaction(
+            company_id=company_id,
+            account_id=account_id,
+            description=txn_data.description,
+            amount=txn_data.amount,
+            date=txn_data.date,
+            type=txn_data.type,
+            source=source,
+            import_id=import_log.id,
+            external_id=txn_data.external_id,
+            currency=txn_currency,
+            payee=import_payee_raw,
+            payee_id=import_payee_id,
+        )
+        apply_effective_date(transaction, account)
+
+        if txn_data.fx_rate:
+            transaction.fx_rate_used = txn_data.fx_rate
+            transaction.amount_primary = txn_data.amount * txn_data.fx_rate
+
+        session.add(transaction)
+        await session.flush()
+
+        # Apply pre-loaded rules inline
+        category_set = transaction.category_id is not None
+        for rule in rules:
+            conditions = rule.conditions or []
+            actions = rule.actions or []
+            if evaluate_conditions(rule.conditions_op, conditions, transaction):
+                category_set = apply_rule_actions(actions, transaction, category_set)
+
+        if not txn_data.fx_rate:
+            await stamp_primary_amount(session, company_id, transaction)
+
+        imported += 1
+
+        # Report progress at intervals
+        if (idx + 1) % report_interval == 0 or idx == total - 1:
+            yield {"phase": "importing", "current": idx + 1, "total": total, "imported": imported, "skipped": skipped}
+
+    # Phase: finalizing
+    yield {"phase": "finalizing", "current": total, "total": total, "imported": imported, "skipped": skipped}
+
+    import_log.transaction_count = imported
+    await session.commit()
+
+    # Phase: done
+    yield {
+        "phase": "done",
+        "current": total,
+        "total": total,
+        "imported": imported,
+        "skipped": skipped,
+        "import_log_id": str(import_log.id),
+    }
 
 def normalize_amount(amount_str: str) -> str:
     """

@@ -645,7 +645,13 @@
     "deleteAll": "Excluir tudo",
     "processError": "Erro ao processar arquivo",
     "importError": "Erro ao importar transações",
-    "previewInfo": "{{count}} transações · formato {{format}}"
+    "previewInfo": "{{count}} transações · formato {{format}}",
+    "progressPreparing": "Preparando importação...",
+    "progressImporting": "Importando transações...",
+    "progressFinalizing": "Finalizando...",
+    "progressDone": "Importação concluída!",
+    "progressImported": "importadas",
+    "progressSkipped": "ignoradas"
   },
   "assets": {
     "title": "Patrimônio",
@@ -793,7 +799,7 @@
     "searchIcon": "Buscar ícone...",
     "noIconsFound": "Nenhum ícone encontrado",
     "primaryCurrency": "Moeda Principal",
-    "showLess":"Mostrar menos",
+    "showLess": "Mostrar menos",
     "showMore": "Mostrar +{{count}}"
   },
   "privacy": {
