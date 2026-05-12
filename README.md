@@ -1,7 +1,7 @@
 <p align="center">
   <img src="https://qvavpbhunmwfjrrgoifv.supabase.co/storage/v1/object/public/utils/logo_verde.png" width="200" alt="Score Finance logo" />
 </p>
-<h1 align="center">Score Finance</h1>
+<h1 align="center">Score Finance </h1>
 <p align="center">
   <a href="https://github.com/score-finance-finance/score-finance/actions/workflows/ci.yml"><img src="https://github.com/score-finance-finance/score-finance/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <img src="https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/tassionoronha/ae627b744aaa2ba89d850ea541c311be/raw/coverage.json" alt="Coverage" />
