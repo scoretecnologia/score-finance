@@ -85,8 +85,15 @@ def apply_rule_actions(
     actions: list[dict],
     tx: "Transaction",
     category_already_set: bool,
+    valid_chart_account_ids: set[uuid.UUID] | None = None,
 ) -> bool:
-    """Apply actions to transaction in-place. Returns updated category_already_set flag."""
+    """Apply actions to transaction in-place. Returns updated category_already_set flag.
+
+    If *valid_chart_account_ids* is provided, ``set_category`` actions whose
+    target UUID is not in the set will be silently skipped — this prevents
+    FK-violation crashes when a rule still references a chart-account that has
+    been deleted.
+    """
     for action in actions:
         op = action.get("op")
         value = action.get("value")
@@ -94,7 +101,11 @@ def apply_rule_actions(
         if op == "set_category" and not category_already_set:
             try:
                 # Value should be a ChartAccount (analytical) UUID
-                tx.chart_account_id = uuid.UUID(str(value))
+                target_id = uuid.UUID(str(value))
+                # Guard: skip if the chart account no longer exists
+                if valid_chart_account_ids is not None and target_id not in valid_chart_account_ids:
+                    continue
+                tx.chart_account_id = target_id
                 category_already_set = True
             except (ValueError, AttributeError):
                 pass

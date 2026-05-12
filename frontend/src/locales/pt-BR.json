@@ -39,7 +39,7 @@
   },
   "nav": {
     "dashboard": "Painel",
-    "transactions": "Transações",
+    "transactions": "Lançamentos",
     "accounts": "Contas",
     "import": "Importar",
     "rules": "Regras",
@@ -97,6 +97,8 @@
   },
   "dashboard": {
     "title": "Painel",
+    "spending": "Despesas",
+    "income": "Receitas",
     "greetingMorning": "Bom dia",
     "greetingAfternoon": "Boa tarde",
     "greetingEvening": "Boa noite",
@@ -148,7 +150,7 @@
     "ratesError": "Erro ao atualizar taxas de câmbio"
   },
   "transactions": {
-    "title": "Transações",
+    "title": "Lançamentos",
     "section": "Financeiro",
     "description": "Descrição",
     "amount": "Valor",
@@ -874,7 +876,7 @@
     "dashboardDesc": "Sua visão financeira resumida — saldos, tendências e gastos.",
     "accounts": "Contas",
     "accountsDesc": "Gerencie suas contas ou conecte seu banco.",
-    "transactions": "Transações",
+    "transactions": "Lançamentos",
     "transactionsDesc": "Visualize, busque e categorize suas transações.",
     "import": "Importar",
     "importDesc": "Importe extratos bancários nos formatos OFX, CSV, QIF ou CAMT.",

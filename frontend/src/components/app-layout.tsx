@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -54,6 +54,8 @@ import {
   ShieldCheck,
   ChevronsUpDown,
   Search,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
@@ -97,6 +99,19 @@ export function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar_collapsed') === 'true'
+    }
+    return false
+  })
+  const toggleSidebarCollapsed = useCallback(() => {
+    setSidebarCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('sidebar_collapsed', String(next))
+      return next
+    })
+  }, [])
   const [accountsExpanded, setAccountsExpanded] = useState(true)
   const [accountsShowAll, setAccountsShowAll] = useState(false)
   const { privacyMode, togglePrivacyMode, mask } = usePrivacyMode()
@@ -222,17 +237,18 @@ export function AppLayout() {
         {/* Sidebar */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-50 w-60 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-transform lg:translate-x-0 shrink-0 overflow-y-auto',
+            'fixed inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border flex flex-col transform transition-all duration-300 ease-in-out lg:translate-x-0 shrink-0 overflow-y-auto',
+            sidebarCollapsed ? 'lg:w-[60px] w-60' : 'w-60',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
           {/* Logo */}
-          <div className="flex h-16 min-h-16 items-center justify-between px-5 border-b border-sidebar-border shrink-0">
-            <div className="flex items-center gap-2.5">
+          <div className={cn('flex h-16 min-h-16 items-center border-b border-sidebar-border shrink-0 transition-all duration-300', sidebarCollapsed ? 'justify-center px-2' : 'justify-between px-5')}>
+            <div className="flex items-center gap-2.5 overflow-hidden">
               <ShellLogo size={24} className="text-primary shrink-0" />
-              <span className="font-bold text-lg text-sidebar-foreground tracking-tight">{t('app.name')}</span>
+              <span className={cn('font-bold text-lg text-sidebar-foreground tracking-tight whitespace-nowrap transition-all duration-300', sidebarCollapsed ? 'opacity-0 w-0' : 'opacity-100')}>{t('app.name')}</span>
             </div>
-            <div className="flex items-center gap-0.5">
+            <div className={cn('flex items-center gap-0.5 transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>
               <button
                 onClick={togglePrivacyMode}
                 className="text-sidebar-muted hover:text-sidebar-foreground transition-colors p-1 rounded-md hover:bg-sidebar-accent"
@@ -254,15 +270,15 @@ export function AppLayout() {
 
           {/* Company Switcher */}
           {companiesList.length > 0 && (
-            <div className="px-3 pt-2 pb-1">
+            <div className={cn('pt-2 pb-1 transition-all duration-300', sidebarCollapsed ? 'px-1.5' : 'px-3')}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-2 w-full rounded-lg border border-sidebar-border/60 bg-sidebar-accent/40 px-3 py-2 text-xs hover:bg-sidebar-accent transition-colors text-left">
+                  <button className={cn('flex items-center gap-2 w-full rounded-lg border border-sidebar-border/60 bg-sidebar-accent/40 py-2 text-xs hover:bg-sidebar-accent transition-colors text-left', sidebarCollapsed ? 'justify-center px-0' : 'px-3')} title={sidebarCollapsed ? (currentCompany?.name ?? 'Selecionar empresa') : undefined}>
                     <Building2 size={13} className="text-primary shrink-0" />
-                    <span className="flex-1 font-medium text-sidebar-foreground truncate">
+                    <span className={cn('flex-1 font-medium text-sidebar-foreground truncate transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>
                       {currentCompany?.name ?? 'Selecionar empresa'}
                     </span>
-                    <ChevronsUpDown size={12} className="text-sidebar-muted shrink-0" />
+                    <ChevronsUpDown size={12} className={cn('text-sidebar-muted shrink-0', sidebarCollapsed ? 'hidden' : '')} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
@@ -299,29 +315,34 @@ export function AppLayout() {
             </div>
           )}
 
-          <div className="px-3 pt-3">
+          <div className={cn('pt-3 transition-all duration-300', sidebarCollapsed ? 'px-1.5' : 'px-3')}>
             <button
               type="button"
               onClick={() => setPaletteOpen(true)}
               className={cn(
-                'group flex w-full items-center gap-2 rounded-lg border border-sidebar-border/80 bg-sidebar-accent/40 px-3 py-2',
+                'group flex w-full items-center rounded-lg border border-sidebar-border/80 bg-sidebar-accent/40 py-2',
                 'text-[12.5px] text-sidebar-muted transition-all',
-                'hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-border'
+                'hover:bg-sidebar-accent hover:text-sidebar-foreground hover:border-sidebar-border',
+                sidebarCollapsed ? 'justify-center px-0 gap-0' : 'gap-2 px-3'
               )}
               aria-label={t('cmdk.triggerAria')}
+              title={sidebarCollapsed ? t('cmdk.triggerLabel') : undefined}
             >
               <Search size={13} className="shrink-0" />
-              <span className="flex-1 text-left">{t('cmdk.triggerLabel')}</span>
-              <kbd className="hidden lg:inline-flex h-[17px] items-center rounded border border-sidebar-border bg-sidebar px-1 font-mono text-[9.5px] font-semibold text-sidebar-muted/80">
+              <span className={cn('flex-1 text-left transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>{t('cmdk.triggerLabel')}</span>
+              <kbd className={cn('h-[17px] items-center rounded border border-sidebar-border bg-sidebar px-1 font-mono text-[9.5px] font-semibold text-sidebar-muted/80', sidebarCollapsed ? 'hidden' : 'hidden lg:inline-flex')}>
                 {isMac ? '⌘' : 'Ctrl'}&nbsp;K
               </kbd>
             </button>
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 px-3 space-y-1 py-4 overflow-y-auto">
+          <nav className={cn('flex-1 space-y-1 py-4 overflow-y-auto transition-all duration-300', sidebarCollapsed ? 'px-1.5' : 'px-3')}>
             {filteredNavItems.map((item, idx) => {
               if (item.type === 'separator') {
+                if (sidebarCollapsed) {
+                  return <div key={`sep-${idx}`} className="pt-2 pb-1 px-2"><div className="border-t border-sidebar-border/40" /></div>
+                }
                 return (
                   <div key={`sep-${idx}`} className="pt-3 pb-1 px-3">
                     <span className="text-[10px] uppercase tracking-[0.12em] font-semibold text-sidebar-muted/50">
@@ -340,10 +361,14 @@ export function AppLayout() {
                   key={item.key}
                   to={item.path}
                   onClick={() => setSidebarOpen(false)}
+                  title={sidebarCollapsed ? t(`nav.${item.key}`) : undefined}
                   className={cn(
-                    'flex items-center gap-3 text-[13px] font-medium transition-all rounded-lg px-3 py-2',
+                    'flex items-center text-[13px] font-medium transition-all rounded-lg py-2',
+                    sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3',
                     isActive
-                      ? 'bg-primary/[0.08] text-primary border-l-[3px] border-primary pl-[9px]'
+                      ? sidebarCollapsed
+                        ? 'bg-primary/[0.08] text-primary'
+                        : 'bg-primary/[0.08] text-primary border-l-[3px] border-primary pl-[9px]'
                       : 'text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground'
                   )}
                 >
@@ -351,13 +376,13 @@ export function AppLayout() {
                     size={17}
                     className={cn('shrink-0', isActive ? 'text-primary' : 'text-sidebar-muted')}
                   />
-                  <span>{t(`nav.${item.key}`)}</span>
+                  <span className={cn('transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>{t(`nav.${item.key}`)}</span>
                 </Link>
               )
             })}
 
             {/* Account list in sidebar (mini) */}
-            {allAccounts.length > 0 && (
+            {allAccounts.length > 0 && !sidebarCollapsed && (
               <div className="mt-4">
                 <button
                   onClick={() => setAccountsExpanded(!accountsExpanded)}
@@ -404,17 +429,30 @@ export function AppLayout() {
             )}
           </nav>
 
+          {/* Collapse toggle (desktop only) */}
+          <div className={cn('hidden lg:flex border-t border-sidebar-border transition-all duration-300', sidebarCollapsed ? 'justify-center px-1.5 py-2' : 'px-3 py-2')}>
+            <button
+              onClick={toggleSidebarCollapsed}
+              className="flex items-center gap-2 w-full rounded-lg px-2 py-1.5 text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors justify-center"
+              title={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+              aria-label={sidebarCollapsed ? 'Expandir menu' : 'Recolher menu'}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+              <span className={cn('text-xs font-medium transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>Recolher</span>
+            </button>
+          </div>
+
           {/* User section */}
-          <div className="p-3 border-t border-sidebar-border mt-auto">
+          <div className={cn('border-t border-sidebar-border mt-auto transition-all duration-300', sidebarCollapsed ? 'p-1.5' : 'p-3')}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 w-full rounded-lg px-3 py-2.5 text-sm hover:bg-sidebar-accent transition-colors text-left group">
+                <button className={cn('flex items-center w-full rounded-lg py-2.5 text-sm hover:bg-sidebar-accent transition-colors group', sidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-3 text-left')} title={sidebarCollapsed ? user?.email : undefined}>
                   <Avatar className="h-7 w-7 shrink-0 ring-1 ring-sidebar-border group-hover:ring-primary/30 transition-all">
                     <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
                       {userInitial}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
+                  <div className={cn('flex-1 min-w-0 transition-all duration-300', sidebarCollapsed ? 'hidden' : '')}>
                     <p className="text-[11px] font-semibold text-sidebar-foreground truncate">{user?.email?.split('@')[0]}</p>
                     <p className="text-[10px] text-sidebar-muted truncate">{user?.email}</p>
                   </div>
@@ -479,7 +517,7 @@ export function AppLayout() {
         </aside>
 
         {/* Main content */}
-        <main className="flex-1 min-h-screen overflow-x-hidden lg:ml-60 bg-background/50">
+        <main className={cn('flex-1 min-h-screen overflow-x-hidden bg-background/50 transition-all duration-300', sidebarCollapsed ? 'lg:ml-[60px]' : 'lg:ml-60')}>
           <div className="p-6 lg:p-8 max-w-7xl mx-auto">
             <Outlet />
           </div>

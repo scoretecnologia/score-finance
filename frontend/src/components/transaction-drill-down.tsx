@@ -112,7 +112,7 @@ export function TransactionDrillDown({
       // Filter projected txs by drill-down criteria
       if (filter?.type && pt.type !== filter.type) continue
       if (filter?.chart_account_id && String(pt.chart_account_id) !== filter.chart_account_id) continue; if (filter?.category_id && String(pt.category_id) !== filter.category_id) continue
-      if (filter?.uncategorized && pt.chart_account_id != null) continue
+      if (filter?.uncategorized && (pt.chart_account_id != null || pt.category_id != null)) continue
       if (filter?.from && pt.date < filter.from) continue
       if (filter?.to && pt.date > filter.to) continue
 

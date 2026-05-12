@@ -29,11 +29,12 @@ async def get_summary(
 @router.get("/spending-by-category", response_model=list[SpendingByCategory])
 async def get_spending_by_category(
     month: Optional[date] = Query(None),
+    type: str = Query("debit", regex="^(debit|credit)$"),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
 ):
-    return await dashboard_service.get_spending_by_category(session, company.id, month)
+    return await dashboard_service.get_spending_by_category(session, company.id, month, type)
 
 
 @router.get("/monthly-trend", response_model=list[MonthlyTrend])

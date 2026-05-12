@@ -89,6 +89,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const [headerCalOpen, setHeaderCalOpen] = useState(false)
   const [hoveredDay, setHoveredDay] = useState<number | null>(null)
+  const [aggregationType, setAggregationType] = useState<'debit' | 'credit'>('debit')
   const dateFnsLocale = i18n.language === 'pt-BR' ? ptBR : enUS
   const monthParam = `${selectedMonth}-01`
   const monthStart = `${selectedMonth}-01`
@@ -105,8 +106,8 @@ export default function DashboardPage() {
   })
 
   const { data: spending, isLoading: spendingLoading } = useQuery({
-    queryKey: ['dashboard', 'spending', selectedMonth],
-    queryFn: () => dashboard.spendingByCategory(monthParam),
+    queryKey: ['dashboard', 'spending', selectedMonth, aggregationType],
+    queryFn: () => dashboard.spendingByCategory(monthParam, aggregationType),
   })
 
   const prevMonth = shiftMonth(selectedMonth, -1)
@@ -234,7 +235,6 @@ export default function DashboardPage() {
       }
     }
     return spending
-      .filter(s => s.chart_account_id !== null)
       .map(s => {
         const budget = s.chart_account_id ? budgetMap.get(s.chart_account_id) : undefined
         const actual = s.total
@@ -526,7 +526,26 @@ export default function DashboardPage() {
         {/* Category Spending Bars */}
         <div className="bg-card rounded-xl border border-border shadow-sm flex flex-col max-h-[420px]">
           <div className="px-5 py-4 border-b border-border shrink-0 flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">{t('dashboard.spendingByCategory')}</p>
+            <div className="flex items-center gap-4">
+              <div className="flex bg-muted rounded-lg p-0.5">
+                <button
+                  onClick={() => setAggregationType('debit')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    aggregationType === 'debit' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t('dashboard.spending')}
+                </button>
+                <button
+                  onClick={() => setAggregationType('credit')}
+                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                    aggregationType === 'credit' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {t('dashboard.income')}
+                </button>
+              </div>
+            </div>
             <button
               onClick={() => setCatSortDesc(v => !v)}
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"

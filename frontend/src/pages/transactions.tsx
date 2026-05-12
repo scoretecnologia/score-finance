@@ -510,7 +510,7 @@ export default function TransactionsPage() {
                   </TableCell>
                   <TableCell className="py-2.5 pl-2 max-w-0">
                     <div className="flex items-center gap-2 md:gap-3">
-                      <CategoryIcon icon={tx.category?.icon} color={tx.category?.color} size="lg" />
+                      <CategoryIcon icon={tx.chart_account?.icon ?? tx.category?.icon} color={tx.chart_account?.color ?? tx.category?.color} size="lg" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold text-foreground truncate">{tx.description}</p>
@@ -567,8 +567,8 @@ export default function TransactionsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="hidden md:table-cell py-2.5">
-                    {tx.category ? (
-                      <span className="text-sm text-muted-foreground">{tx.category.name}</span>
+                    {(tx.chart_account || tx.category) ? (
+                      <span className="text-sm text-muted-foreground">{tx.chart_account?.name ?? tx.category?.name}</span>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">{t('transactions.noCategory')}</span>
                     )}

@@ -21,6 +21,7 @@ class CategoryGroup(Base):
     # Auditoria: quem criou
     created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name: Mapped[str] = mapped_column(String(100))
+    code: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     icon: Mapped[str] = mapped_column(String(50), default="folder")
     color: Mapped[str] = mapped_column(String(7), default="#6B7280")
     position: Mapped[int] = mapped_column(Integer, default=0)

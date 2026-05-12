@@ -658,8 +658,8 @@ export const dashboard = {
     const { data } = await api.get('/dashboard/summary', { params: { month, balance_date: balanceDate } })
     return data
   },
-  spendingByCategory: async (month?: string): Promise<SpendingByCategory[]> => {
-    const { data } = await api.get('/dashboard/spending-by-category', { params: { month } })
+  spendingByCategory: async (month?: string, type: 'debit' | 'credit' = 'debit'): Promise<SpendingByCategory[]> => {
+    const { data } = await api.get('/dashboard/spending-by-category', { params: { month, type } })
     return data
   },
   monthlyTrend: async (months = 6): Promise<MonthlyTrend[]> => {

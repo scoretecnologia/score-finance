@@ -659,6 +659,8 @@ async def apply_rules_to_transaction(
     session: AsyncSession, company_id: uuid.UUID, transaction: Transaction
 ) -> None:
     """Apply all active rules to a transaction, modifying it in-place. Commits nothing."""
+    from app.models.chart_account import ChartAccount
+
     result = await session.execute(
         select(Rule)
         .where(Rule.company_id == company_id, Rule.is_active == True)
@@ -666,13 +668,19 @@ async def apply_rules_to_transaction(
     )
     rules = result.scalars().all()
 
+    # Pre-load valid chart_account IDs to guard against FK violations
+    ca_result = await session.execute(
+        select(ChartAccount.id).where(ChartAccount.company_id == company_id)
+    )
+    valid_chart_account_ids = {row[0] for row in ca_result.all()}
+
     category_set = transaction.category_id is not None
 
     for rule in rules:
         conditions = rule.conditions or []
         actions = rule.actions or []
         if evaluate_conditions(rule.conditions_op, conditions, transaction):
-            category_set = apply_rule_actions(actions, transaction, category_set)
+            category_set = apply_rule_actions(actions, transaction, category_set, valid_chart_account_ids)
 
 
 async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
@@ -680,6 +688,7 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
     from sqlalchemy import or_
     from app.models.account import Account
     from app.models.bank_connection import BankConnection
+    from app.models.chart_account import ChartAccount
 
     result = await session.execute(
         select(Transaction)
@@ -702,6 +711,12 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
     )
     rules = rules_result.scalars().all()
 
+    # Pre-load valid chart_account IDs to guard against FK violations
+    ca_result = await session.execute(
+        select(ChartAccount.id).where(ChartAccount.company_id == company_id)
+    )
+    valid_chart_account_ids = {row[0] for row in ca_result.all()}
+
     count = 0
     for tx in transactions:
         matched = False
@@ -716,7 +731,7 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
                     tx.category_id = None
                     tx.notes = None
                     matched = True
-                category_set = apply_rule_actions(actions, tx, category_set)
+                category_set = apply_rule_actions(actions, tx, category_set, valid_chart_account_ids)
 
         if matched:
             count += 1

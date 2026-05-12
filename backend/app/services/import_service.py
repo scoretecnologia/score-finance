@@ -226,8 +226,14 @@ def parse_csv(
     text = content.decode('utf-8-sig')  # Handle BOM
     reader = csv.DictReader(io.StringIO(text))
 
-    # Normalize field names
-    fieldnames = [f.lower().strip() for f in (reader.fieldnames or [])]
+    def _strip_accents(s: str) -> str:
+        """Remove diacritics so 'Descrição' -> 'descricao'."""
+        import unicodedata
+        nfkd = unicodedata.normalize('NFKD', s)
+        return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+    # Normalize field names: lowercase, strip whitespace AND accents
+    fieldnames = [_strip_accents(f.lower().strip()) for f in (reader.fieldnames or [])]
 
     # Map common column names
     date_cols = ['date', 'data', 'dt', 'transaction_date', 'data_transacao']
@@ -235,6 +241,7 @@ def parse_csv(
     amount_cols = ['amount', 'valor', 'value', 'quantia']
     currency_cols = ['currency', 'moeda', 'currency_code']
     fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
+    external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
 
     def find_col(candidates):
         for c in candidates:
@@ -244,11 +251,12 @@ def parse_csv(
 
     date_col = find_col(date_cols)
     desc_col = find_col(desc_cols)
+    external_id_col = find_col(external_id_cols)
 
     # In split mode, we don't require a single amount column
     use_split = inflow_column and outflow_column
-    inflow_col = inflow_column.lower().strip() if inflow_column else None
-    outflow_col = outflow_column.lower().strip() if outflow_column else None
+    inflow_col = _strip_accents(inflow_column.lower().strip()) if inflow_column else None
+    outflow_col = _strip_accents(outflow_column.lower().strip()) if outflow_column else None
 
     if use_split:
         if inflow_col not in fieldnames or outflow_col not in fieldnames:
@@ -279,8 +287,8 @@ def parse_csv(
 
     transactions = []
     for row in reader:
-        # Normalize row keys
-        row = {k.lower().strip(): v for k, v in row.items()}
+        # Normalize row keys (strip accents to match detected columns)
+        row = {_strip_accents(k.lower().strip()): v for k, v in row.items()}
 
         # Parse date
         date_str = row[date_col].strip()
@@ -344,6 +352,11 @@ def parse_csv(
                 except Exception:
                     pass
 
+        # Extract external_id if available (e.g. Nubank's 'Identificador')
+        txn_external_id = None
+        if external_id_col and row.get(external_id_col):
+            txn_external_id = row[external_id_col].strip() or None
+
         transactions.append(TransactionBase(
             description=row[desc_col].strip(),
             amount=abs(amount),
@@ -351,6 +364,7 @@ def parse_csv(
             type=txn_type,
             currency=txn_currency,
             fx_rate=txn_fx_rate,
+            external_id=txn_external_id,
         ))
 
     return transactions
@@ -394,6 +408,7 @@ async def import_transactions(
 
     # Pre-load rules once to avoid N+1 queries
     from app.models.rule import Rule
+    from app.models.chart_account import ChartAccount
     from app.services.rule_engine import evaluate_conditions, apply_rule_actions
     rules_result = await session.execute(
         select(Rule)
@@ -401,6 +416,12 @@ async def import_transactions(
         .order_by(Rule.priority, Rule.id)
     )
     rules = list(rules_result.scalars().all())
+
+    # Pre-load valid chart_account IDs to guard against FK violations
+    ca_result = await session.execute(
+        select(ChartAccount.id).where(ChartAccount.company_id == company_id)
+    )
+    valid_chart_account_ids = {row[0] for row in ca_result.all()}
 
     imported = 0
     skipped = 0
@@ -468,7 +489,7 @@ async def import_transactions(
             conditions = rule.conditions or []
             actions = rule.actions or []
             if evaluate_conditions(rule.conditions_op, conditions, transaction):
-                category_set = apply_rule_actions(actions, transaction, category_set)
+                category_set = apply_rule_actions(actions, transaction, category_set, valid_chart_account_ids)
 
         # Only auto-convert if no fx_rate was provided by the CSV
         if not txn_data.fx_rate:
@@ -532,6 +553,7 @@ async def import_transactions_streamed(
 
     # Pre-load rules once
     from app.models.rule import Rule
+    from app.models.chart_account import ChartAccount
     from app.services.rule_engine import evaluate_conditions, apply_rule_actions
     rules_result = await session.execute(
         select(Rule)
@@ -539,6 +561,12 @@ async def import_transactions_streamed(
         .order_by(Rule.priority, Rule.id)
     )
     rules = list(rules_result.scalars().all())
+
+    # Pre-load valid chart_account IDs to guard against FK violations
+    ca_result = await session.execute(
+        select(ChartAccount.id).where(ChartAccount.company_id == company_id)
+    )
+    valid_chart_account_ids = {row[0] for row in ca_result.all()}
 
     # Phase: importing
     imported = 0
@@ -610,7 +638,7 @@ async def import_transactions_streamed(
             conditions = rule.conditions or []
             actions = rule.actions or []
             if evaluate_conditions(rule.conditions_op, conditions, transaction):
-                category_set = apply_rule_actions(actions, transaction, category_set)
+                category_set = apply_rule_actions(actions, transaction, category_set, valid_chart_account_ids)
 
         if not txn_data.fx_rate:
             await stamp_primary_amount(session, company_id, transaction)

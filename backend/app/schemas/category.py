@@ -8,8 +8,10 @@ from app.schemas.chart_account import ChartAccountRead
 
 class CategoryBase(BaseModel):
     name: str
+    code: Optional[str] = None
     icon: str = "circle-help"
     color: str = "#6B7280"
+    position: int = 0
     is_synthetic: bool = False
 
 
@@ -19,8 +21,10 @@ class CategoryCreate(CategoryBase):
 
 class CategoryUpdate(BaseModel):
     name: Optional[str] = None
+    code: Optional[str] = None
     icon: Optional[str] = None
     color: Optional[str] = None
+    position: Optional[int] = None
     group_id: Optional[uuid.UUID] = None
 
 

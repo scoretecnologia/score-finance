@@ -97,6 +97,8 @@
   },
   "dashboard": {
     "title": "Dashboard",
+    "spending": "Spending",
+    "income": "Income",
     "greetingMorning": "Good morning",
     "greetingAfternoon": "Good afternoon",
     "greetingEvening": "Good evening",

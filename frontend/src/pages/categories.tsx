@@ -74,15 +74,10 @@ export default function CategoriesPage() {
   const [coaFileName, setCoaFileName] = useState<string | null>(null)
   const coaFileInputRef = useRef<HTMLInputElement>(null)
   const [coaRows, setCoaRows] = useState<{
+    code?: string
     group_name?: string
-    group_icon?: string
-    group_color?: string
     category_name: string
-    category_icon?: string
-    category_color?: string
     account_name: string
-    account_icon?: string
-    account_color?: string
   }[]>([])
 
   const { data: groups } = useQuery({
@@ -211,7 +206,10 @@ export default function CategoriesPage() {
   const renderAccountItem = (acc: ChartAccount) => (
     <div key={acc.id} className="flex items-center gap-3 px-4 sm:px-5 pl-10 sm:pl-16 py-2 border-b border-border last:border-0 hover:bg-muted transition-colors">
       <CategoryIcon icon={acc.icon} color={acc.color} size="sm" />
-      <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">{acc.name}</span>
+      <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">
+        {acc.code ? <span className="text-muted-foreground mr-1.5">{acc.code}</span> : null}
+        {acc.name}
+      </span>
       <div className="flex items-center gap-1 shrink-0 ml-2">
         <button
           className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
@@ -244,7 +242,10 @@ export default function CategoriesPage() {
           >
             {isCollapsed ? <ChevronRight size={14} className="text-muted-foreground shrink-0" /> : <ChevronDown size={14} className="text-muted-foreground shrink-0" />}
             <CategoryIcon icon={cat.icon} color={cat.color} size="md" />
-            <span className="text-sm font-medium text-foreground">{cat.name}</span>
+            <span className="text-sm font-medium text-foreground">
+              {cat.code ? <span className="text-muted-foreground mr-1.5">{cat.code}</span> : null}
+              {cat.name}
+            </span>
             <span className="text-xs text-muted-foreground ml-2">({cat.chart_accounts?.length || 0})</span>
           </button>
           
@@ -283,27 +284,17 @@ export default function CategoriesPage() {
 
   function downloadCoaTemplate() {
     const header = [
-      'group_name',
-      'group_icon',
-      'group_color',
-      'category_name',
-      'category_icon',
-      'category_color',
-      'account_name',
-      'account_icon',
-      'account_color',
+      'codigo',
+      'grupo',
+      'categoria',
+      'conta',
     ]
 
     const example = {
-      group_name: 'Despesas Operacionais',
-      group_icon: 'circle-help',
-      group_color: '#6366f1',
-      category_name: 'Transporte',
-      category_icon: 'car',
-      category_color: '#3B82F6',
-      account_name: 'Uber',
-      account_icon: 'car',
-      account_color: '#3B82F6',
+      codigo: '1.1.01',
+      grupo: 'Despesas Operacionais',
+      categoria: 'Transporte',
+      conta: 'Uber',
     }
 
     const ws = XLSX.utils.json_to_sheet([example], { header })
@@ -333,19 +324,15 @@ export default function CategoriesPage() {
         const parsed: typeof coaRows = []
         for (let i = 0; i < rawRows.length; i += 1) {
           const r = rawRows[i]
-          const category_name = String(r.category_name ?? '').trim()
-          const account_name = String(r.account_name ?? '').trim()
+          const codigo = String(r.codigo ?? '').trim() || undefined
+          const category_name = String(r.categoria ?? '').trim()
+          const account_name = String(r.conta ?? '').trim()
           if (!category_name || !account_name) continue
           parsed.push({
-            group_name: String(r.group_name ?? '').trim() || undefined,
-            group_icon: String(r.group_icon ?? '').trim() || undefined,
-            group_color: String(r.group_color ?? '').trim() || undefined,
+            code: codigo,
+            group_name: String(r.grupo ?? '').trim() || undefined,
             category_name,
-            category_icon: String(r.category_icon ?? '').trim() || undefined,
-            category_color: String(r.category_color ?? '').trim() || undefined,
             account_name,
-            account_icon: String(r.account_icon ?? '').trim() || undefined,
-            account_color: String(r.account_color ?? '').trim() || undefined,
           })
         }
 
@@ -416,7 +403,10 @@ export default function CategoriesPage() {
                   >
                     {isCollapsed ? <ChevronRight size={14} className="text-muted-foreground shrink-0" /> : <ChevronDown size={14} className="text-muted-foreground shrink-0" />}
                     <CategoryIcon icon={group.icon} color={group.color} size="md" />
-                    <span className="text-sm font-semibold" style={{ color: group.color }}>{group.name}</span>
+                    <span className="text-sm font-semibold" style={{ color: group.color }}>
+                      {group.code ? <span className="mr-1.5 opacity-70">{group.code}</span> : null}
+                      {group.name}
+                    </span>
                     <span className="text-xs text-muted-foreground">({group.categories.length})</span>
                   </button>
                   <div className="flex items-center gap-1 shrink-0">
@@ -467,12 +457,14 @@ export default function CategoriesPage() {
             <DialogTitle>{editingGroup ? t('groups.edit') : t('groups.new')}</DialogTitle>
           </DialogHeader>
           <form
+
             key={editingGroup?.id ?? 'new'}
             onSubmit={(e) => {
               e.preventDefault()
               const formData = new FormData(e.currentTarget)
               const data = {
                 name: formData.get('name') as string,
+                code: (formData.get('code') as string) || null,
                 icon: formData.get('icon') as string,
                 color: formData.get('color') as string,
                 position: Number(formData.get('position')),
@@ -485,9 +477,15 @@ export default function CategoriesPage() {
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label>{t('groups.name')}</Label>
-              <Input name="name" defaultValue={editingGroup?.name ?? ''} required />
+            <div className="grid grid-cols-[1fr_2fr] gap-4">
+              <div className="space-y-2">
+                <Label>Código</Label>
+                <Input name="code" defaultValue={editingGroup?.code ?? ''} placeholder="Ex: 1" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('groups.name')}</Label>
+                <Input name="name" defaultValue={editingGroup?.name ?? ''} required />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('groups.position')}</Label>
@@ -525,6 +523,7 @@ export default function CategoriesPage() {
               const formData = new FormData(e.currentTarget)
               const data = {
                 name: formData.get('name') as string,
+                code: (formData.get('code') as string) || null,
                 icon: formData.get('icon') as string,
                 color: formData.get('color') as string,
                 group_id: (formData.get('group_id') as string) || null,
@@ -537,9 +536,15 @@ export default function CategoriesPage() {
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label>{t('groups.name')}</Label>
-              <Input name="name" defaultValue={editingCat?.name ?? ''} required />
+            <div className="grid grid-cols-[1fr_2fr] gap-4">
+              <div className="space-y-2">
+                <Label>Código</Label>
+                <Input name="code" defaultValue={editingCat?.code ?? ''} placeholder="Ex: 1.1" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('groups.name')}</Label>
+                <Input name="name" defaultValue={editingCat?.name ?? ''} required />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('categories.group')}</Label>
@@ -589,6 +594,7 @@ export default function CategoriesPage() {
               const category = categoriesList?.find((c) => c.id === category_id)
               const data: Partial<ChartAccount> = {
                 name,
+                code: (formData.get('code') as string) || null,
                 category_id,
               }
               if (!editingAccount || (editingAccount.category_id !== category_id)) {
@@ -603,9 +609,15 @@ export default function CategoriesPage() {
             }}
             className="space-y-4"
           >
-            <div className="space-y-2">
-              <Label>{t('chartAccounts.name')}</Label>
-              <Input name="name" defaultValue={editingAccount?.name ?? ''} required className="h-11 text-base" />
+            <div className="grid grid-cols-[1fr_2fr] gap-4">
+              <div className="space-y-2">
+                <Label>Código</Label>
+                <Input name="code" defaultValue={editingAccount?.code ?? ''} placeholder="Ex: 1.1.01" className="h-11 text-base" />
+              </div>
+              <div className="space-y-2">
+                <Label>{t('chartAccounts.name')}</Label>
+                <Input name="name" defaultValue={editingAccount?.name ?? ''} required className="h-11 text-base" />
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('chartAccounts.category')}</Label>
@@ -639,7 +651,7 @@ export default function CategoriesPage() {
           </DialogHeader>
 
           <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
-            group_name, group_icon, group_color, category_name, category_icon, category_color, account_name, account_icon, account_color
+            codigo, grupo, categoria, conta
           </div>
 
           <input
@@ -673,14 +685,21 @@ export default function CategoriesPage() {
           </DialogHeader>
 
           <div className="border border-border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[1.2fr_1.2fr_1.4fr_44px] bg-muted/50 text-xs font-medium text-muted-foreground px-3 py-2">
+            <div className="grid grid-cols-[80px_1.2fr_1.2fr_1.4fr_44px] bg-muted/50 text-xs font-medium text-muted-foreground px-3 py-2">
+              <span>Código</span>
               <span>{t('groups.title')}</span>
               <span>{t('categories.title')}</span>
               <span>{t('chartAccounts.title')}</span>
               <span />
             </div>
             {coaRows.map((row, idx) => (
-              <div key={idx} className="grid grid-cols-[1.2fr_1.2fr_1.4fr_44px] gap-2 px-3 py-2 border-t border-border items-center">
+              <div key={idx} className="grid grid-cols-[80px_1.2fr_1.2fr_1.4fr_44px] gap-2 px-3 py-2 border-t border-border items-center">
+                <Input
+                  value={row.code ?? ''}
+                  onChange={(e) => setCoaRows(prev => prev.map((r, i) => i === idx ? { ...r, code: e.target.value || undefined } : r))}
+                  placeholder="Ex: 1.1"
+                  className="h-11 text-base font-mono"
+                />
                 <Input
                   value={row.group_name ?? ''}
                   onChange={(e) => setCoaRows(prev => prev.map((r, i) => i === idx ? { ...r, group_name: e.target.value || undefined } : r))}

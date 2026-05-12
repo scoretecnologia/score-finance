@@ -11,6 +11,7 @@ from app.models.account import Account
 from app.models.bank_connection import BankConnection
 from app.models.transaction import Transaction
 from app.models.category import Category
+from app.models.chart_account import ChartAccount
 from app.models.recurring_transaction import RecurringTransaction
 from app.schemas.dashboard import DashboardSummary, SpendingByCategory, MonthlyTrend, ProjectedTransaction, DailyBalance, BalanceHistory
 from app.services.admin_service import get_credit_card_accounting_mode
@@ -249,7 +250,7 @@ async def get_summary(
 
 
 async def get_spending_by_category(
-    session: AsyncSession, company_id: uuid.UUID, month: Optional[date] = None
+    session: AsyncSession, company_id: uuid.UUID, month: Optional[date] = None, tx_type: str = "debit"
 ) -> list[SpendingByCategory]:
     if not month:
         month = date.today().replace(day=1)
@@ -262,41 +263,64 @@ async def get_spending_by_category(
         Transaction.effective_date if accounting_mode == "accrual" else Transaction.date
     )
 
-    # Real transactions grouped by category (exclude transfer pairs and closed accounts)
+    # Real transactions grouped by chart account (the analytical "conta" in the
+    # chart of accounts). Keep a category_id fallback for older rows still saved
+    # before chart_account_id existed.
     # Use amount_primary for multi-currency support
-    from app.models.chart_account import ChartAccount
     result = await session.execute(
         select(
             ChartAccount.id,
+            ChartAccount.category_id,
             ChartAccount.name,
             ChartAccount.icon,
             ChartAccount.color,
+            Category.id,
+            Category.name,
+            Category.icon,
+            Category.color,
             func.sum(_primary_amount_expr()),
         )
         .select_from(Transaction)
         .join(Account, Transaction.account_id == Account.id)
         .outerjoin(ChartAccount, Transaction.chart_account_id == ChartAccount.id)
+        .outerjoin(Category, Transaction.category_id == Category.id)
         .where(
             Transaction.company_id == company_id,
             Account.is_closed == False,
-            Transaction.type == "debit",
+            Transaction.type == tx_type,
             report_date >= month_start,
             report_date < month_end,
             Transaction.transfer_pair_id.is_(None),
         )
-        .group_by(ChartAccount.id, ChartAccount.name, ChartAccount.icon, ChartAccount.color)
+        .group_by(
+            ChartAccount.id,
+            ChartAccount.category_id,
+            ChartAccount.name,
+            ChartAccount.icon,
+            ChartAccount.color,
+            Category.id,
+            Category.name,
+            Category.icon,
+            Category.color,
+        )
         .order_by(func.sum(_primary_amount_expr()).desc())
     )
 
-    # Build a dict of category_id -> {name, icon, color, total}
+    # Build a dict keyed by chart_account_id. Legacy category rows get a
+    # separate key so they can still appear and drill down correctly.
     spending_map: dict[str | None, dict] = {}
     for row in result.all():
-        cat_id = str(row[0]) if row[0] else None
-        spending_map[cat_id] = {
-            "name": row[1] or "Sem categoria",
-            "icon": row[2] or "circle-help",
-            "color": row[3] or "#6B7280",
-            "total": abs(float(row[4] or 0)),
+        chart_acc_id = str(row[0]) if row[0] else None
+        category_id = str(row[1]) if row[1] else (str(row[5]) if row[5] else None)
+        legacy_key = f"category:{category_id}" if category_id and not chart_acc_id else None
+        key = chart_acc_id or legacy_key
+        spending_map[key] = {
+            "category_id": category_id,
+            "chart_account_id": chart_acc_id,
+            "name": row[2] or row[6] or "Sem categoria",
+            "icon": row[3] or row[7] or "circle-help",
+            "color": row[4] or row[8] or "#6B7280",
+            "total": abs(float(row[9] or 0)),
         }
 
     # Add virtual recurring projections (debit only), converted to primary currency
@@ -305,20 +329,47 @@ async def get_spending_by_category(
     # We need category info for recurring projections — fetch categories
     cat_cache: dict[str, dict] = {}
     for proj in projections:
-        if proj["type"] != "debit":
+        if proj["type"] != tx_type:
             continue
         chart_acc_id = str(proj["chart_account_id"]) if proj.get("chart_account_id") else None
+        legacy_cat_id = str(proj["category_id"]) if proj.get("category_id") else None
+        map_key = chart_acc_id or (f"category:{legacy_cat_id}" if legacy_cat_id else None)
         if chart_acc_id and chart_acc_id not in cat_cache:
             # Fetch chart account info
             ca_result = await session.execute(
-                select(ChartAccount.name, ChartAccount.icon, ChartAccount.color)
+                select(ChartAccount.category_id, ChartAccount.name, ChartAccount.icon, ChartAccount.color)
                 .where(ChartAccount.id == proj["chart_account_id"])
             )
             ca_row = ca_result.one_or_none()
             if ca_row:
-                cat_cache[chart_acc_id] = {"name": ca_row[0], "icon": ca_row[1], "color": ca_row[2]}
+                cat_cache[chart_acc_id] = {
+                    "category_id": str(ca_row[0]) if ca_row[0] else None,
+                    "chart_account_id": chart_acc_id,
+                    "name": ca_row[1],
+                    "icon": ca_row[2],
+                    "color": ca_row[3],
+                }
             else:
-                cat_cache[chart_acc_id] = {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"}
+                cat_cache[chart_acc_id] = {
+                    "category_id": None,
+                    "chart_account_id": chart_acc_id,
+                    "name": "Sem categoria",
+                    "icon": "circle-help",
+                    "color": "#6B7280",
+                }
+        elif legacy_cat_id and map_key not in cat_cache:
+            cat_result = await session.execute(
+                select(Category.name, Category.icon, Category.color)
+                .where(Category.id == proj["category_id"])
+            )
+            cat_row = cat_result.one_or_none()
+            cat_cache[map_key] = {
+                "category_id": legacy_cat_id,
+                "chart_account_id": None,
+                "name": cat_row[0] if cat_row else "Sem categoria",
+                "icon": cat_row[1] if cat_row else "circle-help",
+                "color": cat_row[2] if cat_row else "#6B7280",
+            }
 
         # Convert projection amount to primary currency
         proj_amount, _ = await convert(
@@ -326,11 +377,19 @@ async def get_spending_by_category(
         )
         proj_amount_float = float(proj_amount)
 
-        if chart_acc_id in spending_map:
-            spending_map[chart_acc_id]["total"] += proj_amount_float
+        if map_key in spending_map:
+            spending_map[map_key]["total"] += proj_amount_float
         else:
-            info = cat_cache.get(chart_acc_id, {"name": "Sem categoria", "icon": "circle-help", "color": "#6B7280"})
-            spending_map[chart_acc_id] = {
+            info = cat_cache.get(map_key, {
+                "category_id": None,
+                "chart_account_id": chart_acc_id,
+                "name": "Sem categoria",
+                "icon": "circle-help",
+                "color": "#6B7280",
+            })
+            spending_map[map_key] = {
+                "category_id": info["category_id"],
+                "chart_account_id": info["chart_account_id"],
                 "name": info["name"],
                 "icon": info["icon"],
                 "color": info["color"],
@@ -340,9 +399,10 @@ async def get_spending_by_category(
     # Convert to list and compute percentages
     grand_total = sum(entry["total"] for entry in spending_map.values())
     spending = []
-    for chart_acc_id, entry in sorted(spending_map.items(), key=lambda x: x[1]["total"], reverse=True):
+    for _key, entry in sorted(spending_map.items(), key=lambda x: x[1]["total"], reverse=True):
         spending.append(SpendingByCategory(
-            chart_account_id=chart_acc_id,
+            category_id=entry["category_id"],
+            chart_account_id=entry["chart_account_id"],
             category_name=entry["name"],
             category_icon=entry["icon"],
             category_color=entry["color"],

@@ -43,8 +43,10 @@ export interface Category {
   user_id: string
   group_id: string | null
   name: string
+  code: string | null
   icon: string
   color: string
+  position: number
   is_system: boolean
   is_synthetic: boolean
   chart_accounts: ChartAccount[]
@@ -66,6 +68,7 @@ export interface CategoryGroup {
   id: string
   user_id: string
   name: string
+  code: string | null
   icon: string
   color: string
   position: number

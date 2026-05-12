@@ -86,8 +86,8 @@ async def import_chart_of_accounts(
                 group = CategoryGroup(
                     company_id=company_id,
                     name=group_name,
-                    icon=_norm(row.group_icon) or "circle-help",
-                    color=_norm(row.group_color) or "#6366f1",
+                    icon="folder",
+                    color="#6B7280",
                     position=next_group_position,
                     is_system=False,
                 )
@@ -104,8 +104,8 @@ async def import_chart_of_accounts(
                 company_id=company_id,
                 group_id=group_id,
                 name=category_name,
-                icon=_norm(row.category_icon) or "circle-help",
-                color=_norm(row.category_color) or "#6366f1",
+                icon="circle-help",
+                color="#6B7280",
                 is_system=False,
                 is_synthetic=True,
             )
@@ -126,8 +126,9 @@ async def import_chart_of_accounts(
             company_id=company_id,
             category_id=category.id,
             name=account_name,
-            icon=_norm(row.account_icon) or category.icon,
-            color=_norm(row.account_color) or category.color,
+            code=_norm(row.code),
+            icon=category.icon,
+            color=category.color,
             position=next_account_position,
             is_system=False,
         )

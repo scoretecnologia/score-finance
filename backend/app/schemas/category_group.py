@@ -8,6 +8,7 @@ from app.schemas.category import CategoryRead
 
 class CategoryGroupBase(BaseModel):
     name: str
+    code: Optional[str] = None
     icon: str = "folder"
     color: str = "#6B7280"
     position: int = 0
@@ -19,6 +20,7 @@ class CategoryGroupCreate(CategoryGroupBase):
 
 class CategoryGroupUpdate(BaseModel):
     name: Optional[str] = None
+    code: Optional[str] = None
     icon: Optional[str] = None
     color: Optional[str] = None
     position: Optional[int] = None
