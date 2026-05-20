@@ -100,7 +100,7 @@ async def create_company(
     body: CompanyCreate,
     current_user: Annotated[User, Depends(current_active_user)],
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> Company:
+) -> CompanyOut:
     """Cria uma nova empresa. O usuário que cria vira owner automaticamente."""
     company = Company(
         id=uuid.uuid4(),
@@ -121,7 +121,16 @@ async def create_company(
     db.add(member)
     await db.commit()
     await db.refresh(company)
-    return company
+    return CompanyOut(
+        id=company.id,
+        name=company.name,
+        slug=company.slug,
+        cnpj=company.cnpj,
+        plan=company.plan,
+        is_active=company.is_active,
+        role="owner",
+        created_at=company.created_at,
+    )
 
 
 @router.get("/me", response_model=list[CompanyOut])
@@ -174,9 +183,28 @@ async def list_my_companies(
 @router.get("/{company_id}", response_model=CompanyOut)
 async def get_company(
     company: Annotated[Company, Depends(get_current_company)],
-) -> Company:
+    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: Annotated[User, Depends(current_active_user)],
+) -> CompanyOut:
     """Detalhes de uma empresa (requer ser membro)."""
-    return company
+    result = await db.execute(
+        select(CompanyMember.role)
+        .where(
+            CompanyMember.company_id == company.id,
+            CompanyMember.user_id == current_user.id,
+        )
+    )
+    role = result.scalar_one_or_none() or "member"
+    return CompanyOut(
+        id=company.id,
+        name=company.name,
+        slug=company.slug,
+        cnpj=company.cnpj,
+        plan=company.plan,
+        is_active=company.is_active,
+        role=role,
+        created_at=company.created_at,
+    )
 
 
 @router.patch("/{company_id}", response_model=CompanyOut)
@@ -184,7 +212,8 @@ async def update_company(
     body: CompanyUpdate,
     company: Annotated[Company, Depends(require_role("owner", "admin"))],
     db: Annotated[AsyncSession, Depends(get_async_session)],
-) -> Company:
+    current_user: Annotated[User, Depends(current_active_user)],
+) -> CompanyOut:
     """Edita nome ou CNPJ da empresa (requer owner ou admin)."""
     if body.name is not None:
         company.name = body.name
@@ -192,7 +221,25 @@ async def update_company(
         company.cnpj = body.cnpj
     await db.commit()
     await db.refresh(company)
-    return company
+    
+    result = await db.execute(
+        select(CompanyMember.role)
+        .where(
+            CompanyMember.company_id == company.id,
+            CompanyMember.user_id == current_user.id,
+        )
+    )
+    role = result.scalar_one_or_none() or "member"
+    return CompanyOut(
+        id=company.id,
+        name=company.name,
+        slug=company.slug,
+        cnpj=company.cnpj,
+        plan=company.plan,
+        is_active=company.is_active,
+        role=role,
+        created_at=company.created_at,
+    )
 
 
 @router.get("/{company_id}/members", response_model=list[MemberOut])

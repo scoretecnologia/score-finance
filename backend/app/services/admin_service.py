@@ -144,46 +144,16 @@ async def delete_user(
 
     # Cascade delete user data in correct order
     from app.models.transaction_attachment import TransactionAttachment
-    from app.models.transaction import Transaction
-    from app.models.budget import Budget
-    from app.models.recurring_transaction import RecurringTransaction
-    from app.models.import_log import ImportLog
-    from app.models.rule import Rule
-    from app.models.asset_value import AssetValue
-    from app.models.asset import Asset
-    from app.models.payee import PayeeMapping, Payee
-    from app.models.account import Account
-    from app.models.category import Category
-    from app.models.category_group import CategoryGroup
+    from app.models.company_member import CompanyMember
     from app.models.bank_connection import BankConnection
 
-    # Delete attachments for user's transactions
-    tx_ids_query = select(Transaction.id).where(Transaction.user_id == user_id)
-    await session.execute(
-        delete(TransactionAttachment).where(
-            TransactionAttachment.transaction_id.in_(tx_ids_query)
-        )
-    )
+    # Delete transaction attachments that belong to this user directly
+    await session.execute(delete(TransactionAttachment).where(TransactionAttachment.user_id == user_id))
 
-    # Delete in dependency order
-    await session.execute(delete(Transaction).where(Transaction.user_id == user_id))
-    await session.execute(delete(Budget).where(Budget.user_id == user_id))
-    await session.execute(delete(RecurringTransaction).where(RecurringTransaction.user_id == user_id))
-    await session.execute(delete(ImportLog).where(ImportLog.user_id == user_id))
-    await session.execute(delete(Rule).where(Rule.user_id == user_id))
+    # Delete company memberships for this user
+    await session.execute(delete(CompanyMember).where(CompanyMember.user_id == user_id))
 
-    # Asset values depend on assets
-    asset_ids_query = select(Asset.id).where(Asset.user_id == user_id)
-    await session.execute(
-        delete(AssetValue).where(AssetValue.asset_id.in_(asset_ids_query))
-    )
-    await session.execute(delete(Asset).where(Asset.user_id == user_id))
-
-    await session.execute(delete(PayeeMapping).where(PayeeMapping.user_id == user_id))
-    await session.execute(delete(Payee).where(Payee.user_id == user_id))
-    await session.execute(delete(Account).where(Account.user_id == user_id))
-    await session.execute(delete(Category).where(Category.user_id == user_id))
-    await session.execute(delete(CategoryGroup).where(CategoryGroup.user_id == user_id))
+    # Delete bank connections for this user
     await session.execute(delete(BankConnection).where(BankConnection.user_id == user_id))
 
     # Delete the user
