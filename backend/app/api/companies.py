@@ -330,8 +330,7 @@ async def invite_member(
         user_id=invited_user.id,
         role=body.role,
         invited_by=current_user.id,
-        # Se o usuário foi criado agora pelo admin, já marcamos como aceito
-        accepted_at=datetime.now(timezone.utc) if body.password else None
+        accepted_at=datetime.now(timezone.utc)
     )
     db.add(member)
     await db.commit()
