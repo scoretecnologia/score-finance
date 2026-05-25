@@ -3,7 +3,7 @@ import io
 import re
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, date
 from decimal import Decimal
 
 from ofxparse import OfxParser
