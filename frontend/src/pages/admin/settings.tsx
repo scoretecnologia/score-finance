@@ -317,7 +317,7 @@ export default function AdminSettingsPage() {
                     variant="outline" 
                     size="sm" 
                     className="text-xs h-8"
-                    onClick={() => switchCompany(c)}
+                    onClick={() => switchCompany({ ...c, role: 'owner' })}
                   >
                     Acessar painel
                     <ExternalLink size={12} className="ml-1.5" />

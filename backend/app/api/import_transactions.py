@@ -57,6 +57,15 @@ async def preview_import(
                 outflow_column=outflow_column,
             )
             detected_format = "csv"
+        elif filename.lower().endswith('.xls') or filename.lower().endswith('.xlsx'):
+            transactions = import_service.parse_excel(
+                content,
+                date_format=date_format,
+                flip_amount=flip_amount,
+                inflow_column=inflow_column,
+                outflow_column=outflow_column,
+            )
+            detected_format = "excel"
         else:
             # Try to detect format
             try:
@@ -71,8 +80,18 @@ async def preview_import(
                         transactions = import_service.parse_camt(content)
                         detected_format = "camt"
                     except Exception:
-                        transactions = import_service.parse_csv(content)
-                        detected_format = "csv"
+                        try:
+                            transactions = import_service.parse_excel(
+                                content,
+                                date_format=date_format,
+                                flip_amount=flip_amount,
+                                inflow_column=inflow_column,
+                                outflow_column=outflow_column,
+                            )
+                            detected_format = "excel"
+                        except Exception:
+                            transactions = import_service.parse_csv(content)
+                            detected_format = "csv"
     except Exception as e:
         logger.error(
             "Failed to parse import file: filename=%s, size=%d bytes, "

@@ -607,7 +607,7 @@
     "systemGroup": "Grupo do sistema"
   },
   "import": {
-    "acceptedFormats": "Formatos aceitos: OFX, CSV, QIF, CAMT",
+    "acceptedFormats": "Formatos aceitos: OFX, CSV, QIF, CAMT, XLS, XLSX",
     "downloadTemplate": "Baixar modelo CSV",
     "transactionsImported": "transações importadas",
     "importedWithSkipped": "{{imported}} importadas, {{skipped}} duplicatas ignoradas",
@@ -879,7 +879,7 @@
     "transactions": "Lançamentos",
     "transactionsDesc": "Visualize, busque e categorize suas transações.",
     "import": "Importar",
-    "importDesc": "Importe extratos bancários nos formatos OFX, CSV, QIF ou CAMT.",
+    "importDesc": "Importe extratos bancários nos formatos OFX, CSV, QIF, CAMT ou Excel.",
     "categories": "Categorias",
     "categoriesDesc": "Organize seus gastos com categorias personalizadas.",
     "skip": "Pular tour",

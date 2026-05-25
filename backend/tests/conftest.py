@@ -53,11 +53,10 @@ async def setup_database():
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
-    # Clean up test db file
     import os
     try:
         os.remove("./test.db")
-    except FileNotFoundError:
+    except (FileNotFoundError, PermissionError):
         pass
 
 

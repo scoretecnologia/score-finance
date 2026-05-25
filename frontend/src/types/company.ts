@@ -7,6 +7,7 @@ export interface Company {
   plan: string
   is_active: boolean
   created_at: string
+  role?: string
 }
 
 export interface CompanyMember {

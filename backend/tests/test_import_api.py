@@ -22,6 +22,32 @@ async def test_preview_csv_import(client: AsyncClient, auth_headers, test_accoun
 
 
 @pytest.mark.asyncio
+async def test_preview_xlsx_import(client: AsyncClient, auth_headers, test_account):
+    import openpyxl
+    import io
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Data", "Descrição", "Valor"])
+    ws.append(["2026-05-25", "Venda Mercado", 1500.50])
+    fp = io.BytesIO()
+    wb.save(fp)
+    xlsx_bytes = fp.getvalue()
+
+    response = await client.post(
+        "/api/transactions/import/preview",
+        headers=auth_headers,
+        files={"file": ("extrato.xlsx", xlsx_bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["detected_format"] == "excel"
+    assert len(data["transactions"]) == 1
+    assert data["transactions"][0]["description"] == "Venda Mercado"
+    assert float(data["transactions"][0]["amount"]) == 1500.50
+
+
+
+@pytest.mark.asyncio
 async def test_preview_invalid_file(client: AsyncClient, auth_headers, test_account):
     response = await client.post(
         "/api/transactions/import/preview",

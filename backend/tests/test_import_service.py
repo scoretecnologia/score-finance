@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import Account
 from app.models.fx_rate import FxRate
 from app.models.user import User
-from app.services.import_service import parse_csv, parse_ofx, parse_qif, parse_camt, import_transactions
+from app.services.import_service import parse_csv, parse_ofx, parse_qif, parse_camt, import_transactions, parse_excel
 
 
 class TestParseCsv:
@@ -213,6 +213,49 @@ class TestParseCsv:
         assert len(transactions) == 2
         assert transactions[0].amount == Decimal("5000.00")
         assert transactions[1].amount == Decimal("1200.00")
+
+    def test_parse_csv_semicolon_latin1_type_column(self):
+        """Parse a Latin-1 encoded CSV with semicolon delimiter, 'Valor R$' amount, and type/indicator column."""
+        csv_content = (
+            "Data;Descri\xe7\xe3o;D\xe9bito/Cr\xe9dito;Valor R$;Saldo\n"
+            "02/04/2026;ANTECIPACAO RECEBIVEIS;C;195,95;10.998,63\n"
+            "15/04/2026;DEBITO PRINCIPAL;D;-500,31;34.827,71\n"
+        )
+        encoded_content = csv_content.encode("latin-1")
+        transactions = parse_csv(encoded_content)
+
+        assert len(transactions) == 2
+
+        assert transactions[0].description == "ANTECIPACAO RECEBIVEIS"
+        assert transactions[0].amount == Decimal("195.95")
+        assert transactions[0].date == date(2026, 4, 2)
+        assert transactions[0].type == "credit"
+
+        assert transactions[1].description == "DEBITO PRINCIPAL"
+        assert transactions[1].amount == Decimal("500.31")
+        assert transactions[1].date == date(2026, 4, 15)
+        assert transactions[1].type == "debit"
+
+    def test_parse_csv_legacy_carriage_returns_and_spaced_amounts(self):
+        """Parse a CSV with legacy \\r newlines and spaced negative amounts (e.g. ' - 105,00')."""
+        csv_content = (
+            "Data;Descri\xe7\xe3o;D\xe9bito/Cr\xe9dito;Valor R$;Saldo\r"
+            "02/04/2026;ANTECIPACAO RECEBIVEIS;C;195,95;10.998,63\r"
+            "15/04/2026;DEBITO PRINCIPAL;D; - 500,31;34.827,71\r"
+        )
+        transactions = parse_csv(csv_content.encode("latin-1"))
+
+        assert len(transactions) == 2
+
+        assert transactions[0].description == "ANTECIPACAO RECEBIVEIS"
+        assert transactions[0].amount == Decimal("195.95")
+        assert transactions[0].date == date(2026, 4, 2)
+        assert transactions[0].type == "credit"
+
+        assert transactions[1].description == "DEBITO PRINCIPAL"
+        assert transactions[1].amount == Decimal("500.31")
+        assert transactions[1].date == date(2026, 4, 15)
+        assert transactions[1].type == "debit"
 
 
 class TestParseQif:
@@ -564,6 +607,154 @@ class TestParseOfx:
         assert transactions[1].external_id == "FITID_002"
         assert transactions[0].amount == transactions[1].amount
         assert transactions[0].description == transactions[1].description
+
+
+class TestParseExcel:
+    """Tests for the parse_excel function."""
+
+    def test_parse_excel_xlsx_format(self):
+        """Parse an XLSX file (represented by PK zip header) constructed in-memory."""
+        import openpyxl
+        import io
+        
+        # Create in-memory workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Data", "Descrição", "Valor", "Origem", "Destino"])
+        ws.append(["2026-05-25", "Venda Mercado", 1500.50, "Remetente X", ""])
+        ws.append(["2026-05-26", "Tarifa", -12.30, "", "Banco"])
+        
+        # Save to bytes
+        fp = io.BytesIO()
+        wb.save(fp)
+        xlsx_bytes = fp.getvalue()
+        
+        transactions = parse_excel(xlsx_bytes)
+        
+        assert len(transactions) == 2
+        
+        # First transaction: credit
+        assert transactions[0].description == "Venda Mercado - Remetente X"
+        assert transactions[0].amount == Decimal("1500.50")
+        assert transactions[0].date == date(2026, 5, 25)
+        assert transactions[0].type == "credit"
+        
+        # Second transaction: debit
+        assert transactions[1].description == "Tarifa - Banco"
+        assert transactions[1].amount == Decimal("12.30")
+        assert transactions[1].date == date(2026, 5, 26)
+        assert transactions[1].type == "debit"
+
+    @patch("xlrd.open_workbook")
+    def test_parse_excel_xls_format(self, mock_open_workbook):
+        """Parse legacy XLS format using mocked xlrd reader."""
+        from unittest.mock import MagicMock
+        
+        # Set up mock workbook
+        mock_wb = MagicMock()
+        mock_wb.datemode = 0
+        mock_sheet = MagicMock()
+        mock_sheet.nrows = 3
+        mock_sheet.row_values.side_effect = [
+            ["Data", "Descrição", "Valor", "Origem", "Destino"],
+            ["25/05/2026", "Venda Mercado", 1500.50, "Remetente X", ""],
+            ["2026-05-26", "Tarifa", -12.30, "", "Banco"],
+        ]
+        mock_wb.sheet_by_index.return_value = mock_sheet
+        mock_open_workbook.return_value = mock_wb
+        
+        # Pass non-zip bytes to trigger the xlrd branch
+        transactions = parse_excel(b"not a zip file")
+        
+        assert len(transactions) == 2
+        
+        assert transactions[0].description == "Venda Mercado - Remetente X"
+        assert transactions[0].amount == Decimal("1500.50")
+        assert transactions[0].date == date(2026, 5, 25)
+        assert transactions[0].type == "credit"
+        
+        assert transactions[1].description == "Tarifa - Banco"
+        assert transactions[1].amount == Decimal("12.30")
+        assert transactions[1].date == date(2026, 5, 26)
+        assert transactions[1].type == "debit"
+
+    def test_parse_excel_split_columns(self):
+        """Parse Excel with separate Credit and Debit columns."""
+        import openpyxl
+        import io
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Data", "Descrição", "Crédito", "Débito"])
+        ws.append(["2026-05-25", "Venda", 150.00, None])
+        ws.append(["2026-05-26", "Compra", None, 50.00])
+        
+        fp = io.BytesIO()
+        wb.save(fp)
+        xlsx_bytes = fp.getvalue()
+        
+        transactions = parse_excel(xlsx_bytes)
+        
+        assert len(transactions) == 2
+        
+        assert transactions[0].description == "Venda"
+        assert transactions[0].amount == Decimal("150.00")
+        assert transactions[0].type == "credit"
+        
+        assert transactions[1].description == "Compra"
+        assert transactions[1].amount == Decimal("50.00")
+        assert transactions[1].type == "debit"
+
+    def test_parse_excel_explicit_split_columns(self):
+        """Parse Excel with explicit split column names supplied."""
+        import openpyxl
+        import io
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["Data", "Descrição", "Entrada", "Saída"])
+        ws.append(["2026-05-25", "Venda", 100.00, None])
+        ws.append(["2026-05-26", "Compra", None, 30.00])
+        
+        fp = io.BytesIO()
+        wb.save(fp)
+        xlsx_bytes = fp.getvalue()
+        
+        transactions = parse_excel(xlsx_bytes, inflow_column="Entrada", outflow_column="Saída")
+        
+        assert len(transactions) == 2
+        
+        assert transactions[0].description == "Venda"
+        assert transactions[0].amount == Decimal("100.00")
+        assert transactions[0].type == "credit"
+        
+        assert transactions[1].description == "Compra"
+        assert transactions[1].amount == Decimal("30.00")
+        assert transactions[1].type == "debit"
+
+    def test_parse_excel_with_actual_files(self):
+        """Attempt to parse actual workspace Excel files if present."""
+        import os
+        
+        files_to_test = [
+            ("STONE CNPJ ITAPIPOCA.xls", 19),
+            ("STONE CNPJ SOBRAL.xls", 35),
+            ("STONE DANI.xls", 346),
+            ("SANTANDER.xls", 22)
+        ]
+        
+        for filename, expected_count in files_to_test:
+            filepath = os.path.join("..", filename)
+            if not os.path.exists(filepath):
+                filepath = filename
+            if not os.path.exists(filepath):
+                filepath = os.path.join("c:\\Users\\Lucas Vitorino\\Documents\\score-finance", filename)
+            
+            if os.path.exists(filepath):
+                with open(filepath, "rb") as f:
+                    content = f.read()
+                transactions = parse_excel(content)
+                assert len(transactions) == expected_count, f"File {filename} parsed {len(transactions)} transactions, expected {expected_count}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

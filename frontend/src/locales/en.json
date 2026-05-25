@@ -608,7 +608,7 @@
     "systemGroup": "System group"
   },
   "import": {
-    "acceptedFormats": "Accepted formats: OFX, CSV, QIF, CAMT",
+    "acceptedFormats": "Accepted formats: OFX, CSV, QIF, CAMT, XLS, XLSX",
     "downloadTemplate": "Download CSV template",
     "transactionsImported": "transactions imported",
     "importedWithSkipped": "{{imported}} imported, {{skipped}} duplicates skipped",
@@ -874,7 +874,7 @@
     "transactions": "Transactions",
     "transactionsDesc": "View, search, and categorize your transactions.",
     "import": "Import",
-    "importDesc": "Import bank statements in OFX, CSV, QIF, or CAMT format.",
+    "importDesc": "Import bank statements in OFX, CSV, QIF, CAMT, or Excel format.",
     "categories": "Categories",
     "categoriesDesc": "Organize your spending with custom categories.",
     "skip": "Skip tour",

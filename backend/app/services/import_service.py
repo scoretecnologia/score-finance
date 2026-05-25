@@ -223,8 +223,29 @@ def parse_csv(
     - flip_amount: negate all parsed amounts
     - inflow_column/outflow_column: use split columns instead of single amount
     """
-    text = content.decode('utf-8-sig')  # Handle BOM
-    reader = csv.DictReader(io.StringIO(text))
+    try:
+        text = content.decode('utf-8-sig')  # Handle BOM
+    except UnicodeDecodeError:
+        text = content.decode('latin-1')
+
+    # Normalize line endings to avoid _csv.Error on mixed/legacy newline characters
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+
+    # Detect delimiter
+    delimiter = ','
+    if text:
+        first_line = text.splitlines()[0] if text.splitlines() else ""
+        candidates = [';', ',', '\t', '|']
+        best_delim = ','
+        max_fields = 1
+        for d in candidates:
+            fields = first_line.split(d)
+            if len(fields) > max_fields:
+                max_fields = len(fields)
+                best_delim = d
+        delimiter = best_delim
+
+    reader = csv.DictReader(io.StringIO(text), delimiter=delimiter)
 
     def _strip_accents(s: str) -> str:
         """Remove diacritics so 'Descrição' -> 'descricao'."""
@@ -238,7 +259,8 @@ def parse_csv(
     # Map common column names
     date_cols = ['date', 'data', 'dt', 'transaction_date', 'data_transacao']
     desc_cols = ['description', 'descricao', 'desc', 'memo', 'historico', 'lancamento']
-    amount_cols = ['amount', 'valor', 'value', 'quantia']
+    amount_cols = ['amount', 'valor', 'value', 'quantia', 'valor r$', 'valor_r$', 'valor(r$)', 'valor ($)']
+    type_cols = ['type', 'tipo', 'debito/credito', 'dc', 'd/c', 'natureza']
     currency_cols = ['currency', 'moeda', 'currency_code']
     fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
     external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
@@ -252,6 +274,7 @@ def parse_csv(
     date_col = find_col(date_cols)
     desc_col = find_col(desc_cols)
     external_id_col = find_col(external_id_cols)
+    type_col = find_col(type_cols)
 
     # In split mode, we don't require a single amount column
     use_split = inflow_column and outflow_column
@@ -337,6 +360,12 @@ def parse_csv(
                 amount = -amount
 
             txn_type = "credit" if amount > 0 else "debit"
+            if type_col and row.get(type_col):
+                t_val = row[type_col].strip().lower()
+                if t_val in ('d', 'debit', 'debito', 'dbito'):
+                    txn_type = "debit"
+                elif t_val in ('c', 'credit', 'credito', 'crdito'):
+                    txn_type = "credit"
             amount = abs(amount)
 
         # Extract optional currency and fx_rate from CSV columns
@@ -674,7 +703,7 @@ def normalize_amount(amount_str: str) -> str:
         1,442.20 -> 1442.20
     """
 
-    amount_str = amount_str.replace('R$', '').strip()
+    amount_str = amount_str.replace('R$', '').replace(' ', '').strip()
 
     if ',' in amount_str and '.' in amount_str:
         if amount_str.rfind(',') > amount_str.rfind('.'):
@@ -685,3 +714,211 @@ def normalize_amount(amount_str: str) -> str:
         amount_str = amount_str.replace(',', '.')
 
     return amount_str
+
+
+def parse_excel_date(cell_val, datemode=0) -> date | None:
+    from datetime import datetime, date
+    if isinstance(cell_val, (datetime, date)):
+        if hasattr(cell_val, 'date'):
+            return cell_val.date()
+        return cell_val
+    if isinstance(cell_val, str):
+        date_str = cell_val.strip()
+        if ' ' in date_str:
+            date_str = date_str.split(' ')[0]
+        for fmt in ['%d/%m/%Y', '%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y']:
+            try:
+                return datetime.strptime(date_str, fmt).date()
+            except ValueError:
+                continue
+    if isinstance(cell_val, (int, float)) and cell_val > 0:
+        try:
+            from xlrd import xldate_as_datetime
+            return xldate_as_datetime(cell_val, datemode).date()
+        except Exception:
+            import datetime as dt
+            return (dt.date(1899, 12, 30) + dt.timedelta(days=int(cell_val)))
+    return None
+
+
+def parse_excel_amount(cell_val) -> Decimal | None:
+    if cell_val is None or cell_val == '':
+        return None
+    if isinstance(cell_val, (int, float)):
+        return Decimal(str(cell_val))
+    if isinstance(cell_val, Decimal):
+        return cell_val
+    if isinstance(cell_val, str):
+        cleaned = normalize_amount(cell_val)
+        if not cleaned:
+            return None
+        try:
+            return Decimal(cleaned)
+        except Exception:
+            return None
+    return None
+
+
+def parse_excel(
+    content: bytes,
+    date_format: str | None = None,
+    flip_amount: bool = False,
+    inflow_column: str | None = None,
+    outflow_column: str | None = None,
+) -> list[TransactionBase]:
+    """Parse XLS or XLSX file content and return transactions."""
+    rows = []
+    datemode = 0
+    
+    if content.startswith(b'PK\x03\x04'):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+        sheet = wb.active
+        for r in sheet.iter_rows(values_only=True):
+            rows.append(list(r))
+    else:
+        import xlrd
+        wb = xlrd.open_workbook(file_contents=content)
+        sheet = wb.sheet_by_index(0)
+        datemode = wb.datemode
+        for r_idx in range(sheet.nrows):
+            rows.append(sheet.row_values(r_idx))
+
+    def _strip_accents(s: str) -> str:
+        import unicodedata
+        nfkd = unicodedata.normalize('NFKD', s)
+        return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+    def _normalize_header(val) -> str:
+        if val is None:
+            return ""
+        return _strip_accents(str(val).lower().strip())
+
+    date_cols = ['date', 'data', 'dt', 'transaction_date', 'data_transacao']
+    desc_cols = ['description', 'descricao', 'desc', 'memo', 'historico', 'lancamento', 'tipo']
+    amount_cols = ['amount', 'valor', 'value', 'quantia', 'valor r$', 'valor_r$', 'valor(r$)', 'valor ($)']
+    inflow_cols = ['inflow', 'credito', 'credito (r$)', 'credito(r$)', 'entradas', 'recebido']
+    outflow_cols = ['outflow', 'debito', 'debito (r$)', 'debito(r$)', 'saidas', 'pago']
+    type_cols = ['type', 'tipo', 'debito/credito', 'dc', 'd/c', 'natureza']
+    currency_cols = ['currency', 'moeda', 'currency_code']
+    fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
+    external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
+    origem_cols = ['origem', 'remetente']
+    destino_cols = ['destino', 'destinatario']
+
+    header_idx = -1
+    date_col_idx = -1
+    desc_col_idx = -1
+    amount_col_idx = -1
+    inflow_col_idx = -1
+    outflow_col_idx = -1
+    type_col_idx = -1
+    currency_col_idx = -1
+    fx_rate_col_idx = -1
+    external_id_col_idx = -1
+    origem_col_idx = -1
+    destino_col_idx = -1
+
+    for idx, row in enumerate(rows):
+        normalized_row = [_normalize_header(cell) for cell in row]
+        def find_index(candidates):
+            for c in candidates:
+                if c in normalized_row:
+                    return normalized_row.index(c)
+            return -1
+
+        d_idx = find_index(date_cols)
+        desc_idx = find_index(desc_cols)
+        if d_idx != -1 and desc_idx != -1:
+            header_idx = idx
+            date_col_idx = d_idx
+            desc_col_idx = desc_idx
+            if inflow_column:
+                norm_in = _normalize_header(inflow_column)
+                inflow_col_idx = normalized_row.index(norm_in) if norm_in in normalized_row else -1
+            else:
+                inflow_col_idx = find_index(inflow_cols)
+            if outflow_column:
+                norm_out = _normalize_header(outflow_column)
+                outflow_col_idx = normalized_row.index(norm_out) if norm_out in normalized_row else -1
+            else:
+                outflow_col_idx = find_index(outflow_cols)
+            amount_col_idx = find_index(amount_cols)
+            type_col_idx = find_index(type_cols)
+            currency_col_idx = find_index(currency_cols)
+            fx_rate_col_idx = find_index(fx_rate_cols)
+            external_id_col_idx = find_index(external_id_cols)
+            origem_col_idx = find_index(origem_cols)
+            destino_col_idx = find_index(destino_cols)
+            break
+
+    if header_idx == -1:
+        raise ValueError("Could not detect Excel columns. Expected columns like: date, description, amount (or Portuguese equivalents: data, descricao, valor)")
+
+    use_split = (inflow_col_idx != -1 and outflow_col_idx != -1)
+    if not use_split and amount_col_idx == -1:
+        raise ValueError("Could not detect amount column. Expected a column named: amount, valor, value, or separate credit/debit columns.")
+
+    transactions = []
+    for idx, row in enumerate(rows[header_idx + 1:]):
+        if not any(cell is not None and cell != '' for cell in row):
+            continue
+        cell_date = row[date_col_idx]
+        txn_date = parse_excel_date(cell_date, datemode)
+        if not txn_date:
+            continue
+        desc = str(row[desc_col_idx]).strip() if row[desc_col_idx] is not None else ""
+        if not desc or desc.lower() in ('total', 'saldo anterior', 'saldo atual', 'saldo'):
+            continue
+
+        origem_val = str(row[origem_col_idx]).strip() if origem_col_idx != -1 and row[origem_col_idx] is not None else ""
+        destino_val = str(row[destino_col_idx]).strip() if destino_col_idx != -1 and row[destino_col_idx] is not None else ""
+
+        if use_split:
+            inflow_val = parse_excel_amount(row[inflow_col_idx])
+            outflow_val = parse_excel_amount(row[outflow_col_idx])
+            inflow = abs(inflow_val) if inflow_val is not None else Decimal('0')
+            outflow = abs(outflow_val) if outflow_val is not None else Decimal('0')
+            if inflow > 0:
+                amount = inflow
+                txn_type = "credit"
+            elif outflow > 0:
+                amount = outflow
+                txn_type = "debit"
+            else:
+                continue
+        else:
+            amount_val = parse_excel_amount(row[amount_col_idx])
+            if amount_val is None:
+                continue
+            if flip_amount:
+                amount_val = -amount_val
+            txn_type = "credit" if amount_val > 0 else "debit"
+            amount = abs(amount_val)
+
+        if type_col_idx != -1 and row[type_col_idx] is not None:
+            t_val = str(row[type_col_idx]).strip().lower()
+            if t_val in ('d', 'debit', 'debito', 'dbito'):
+                txn_type = "debit"
+            elif t_val in ('c', 'credit', 'credito', 'crdito'):
+                txn_type = "credit"
+
+        if txn_type == "debit" and destino_val:
+            desc = f"{desc} - {destino_val}" if desc and desc != destino_val else destino_val
+        elif txn_type == "credit" and origem_val:
+            desc = f"{desc} - {origem_val}" if desc and desc != origem_val else origem_val
+
+        txn_currency = str(row[currency_col_idx]).strip().upper() if currency_col_idx != -1 and row[currency_col_idx] else None
+        txn_fx_rate = parse_excel_amount(row[fx_rate_col_idx]) if fx_rate_col_idx != -1 and row[fx_rate_col_idx] is not None else None
+        txn_external_id = str(row[external_id_col_idx]).strip() if external_id_col_idx != -1 and row[external_id_col_idx] else None
+
+        transactions.append(TransactionBase(
+            description=desc,
+            amount=amount,
+            date=txn_date,
+            type=txn_type,
+            currency=txn_currency,
+            fx_rate=txn_fx_rate,
+            external_id=txn_external_id,
+        ))
+    return transactions
