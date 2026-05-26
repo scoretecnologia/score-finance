@@ -648,7 +648,14 @@
     "deleteAll": "Delete all",
     "processError": "Error processing file",
     "importError": "Error importing transactions",
-    "previewInfo": "{{count}} transactions · format {{format}}"
+    "previewInfo": "{{count}} transactions · format {{format}}",
+    "progressPreparing": "Preparing import...",
+    "progressImporting": "Importing transactions...",
+    "progressFinalizing": "Finalizing...",
+    "progressDone": "Import completed!",
+    "progressImported": "imported",
+    "progressSkipped": "skipped",
+    "importCancelled": "Import cancelled"
   },
   "assets": {
     "title": "Assets",

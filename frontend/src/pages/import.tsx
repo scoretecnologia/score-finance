@@ -125,12 +125,14 @@ export default function ImportPage() {
             setCurrentFile(null)
             resetCsvOptions()
             if (fileInputRef.current) fileInputRef.current.value = ''
+            abortRef.current = null
           }, 1200)
         }
 
         if (data.phase === 'error') {
           toast.error(data.message || t('import.importError'))
           setImportProgress(null)
+          abortRef.current = null
         }
       },
     )
@@ -140,9 +142,21 @@ export default function ImportPage() {
       if (err.name !== 'AbortError') {
         toast.error(err.message || t('import.importError'))
         setImportProgress(null)
+        abortRef.current = null
       }
     })
   }, [previewData, selectedAccount, fileName, queryClient, t, resetCsvOptions])
+
+  const handleCancelImport = useCallback(() => {
+    if (importProgress && importProgress.phase !== 'done' && importProgress.phase !== 'error') {
+      if (abortRef.current) {
+        abortRef.current()
+        abortRef.current = null
+      }
+      toast.info(t('import.importCancelled'))
+    }
+    setImportProgress(null)
+  }, [importProgress, t])
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => importLogsApi.delete(id),
@@ -563,7 +577,7 @@ export default function ImportPage() {
       </div>
 
       {/* Import progress modal */}
-      <Dialog open={!!importProgress} onOpenChange={() => {}}>
+      <Dialog open={!!importProgress} onOpenChange={(open) => { if (!open) handleCancelImport() }}>
         <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           {importProgress && (() => {
             const pct = importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0

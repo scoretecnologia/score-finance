@@ -653,7 +653,8 @@
     "progressFinalizing": "Finalizando...",
     "progressDone": "Importação concluída!",
     "progressImported": "importadas",
-    "progressSkipped": "ignoradas"
+    "progressSkipped": "ignoradas",
+    "importCancelled": "Importação cancelada"
   },
   "assets": {
     "title": "Patrimônio",
