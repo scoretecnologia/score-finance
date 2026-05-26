@@ -164,15 +164,20 @@ async def create_account(session: AsyncSession, company_id: uuid.UUID, data: Acc
     session.add(account)
     await session.flush()  # get account.id without committing
 
-    if data.balance > Decimal("0.00"):
-        # Credit cards: opening balance represents debt → record as debit.
-        # Other accounts: opening balance represents assets → record as credit.
-        opening_type = "debit" if data.type == "credit_card" else "credit"
+    if data.balance != Decimal("0.00"):
+        # Credit cards: positive balance input represents debt (debit),
+        # negative balance input represents credit.
+        # Other accounts: positive balance represents asset (credit),
+        # negative balance represents overdraft/debt (debit).
+        if data.type == "credit_card":
+            opening_type = "debit" if data.balance > Decimal("0.00") else "credit"
+        else:
+            opening_type = "credit" if data.balance > Decimal("0.00") else "debit"
         opening_tx = Transaction(
             company_id=company_id,
             account_id=account.id,
             description="Saldo inicial",
-            amount=data.balance,
+            amount=abs(data.balance),
             currency=data.currency,
             date=data.balance_date or _Date.today(),
             type=opening_type,
@@ -252,11 +257,16 @@ async def update_account(
             )
         )
         opening_tx = existing_opening.scalar_one_or_none()
-        opening_type = "debit" if account.type == "credit_card" else "credit"
 
-        if new_balance > Decimal("0.00"):
+        if new_balance != Decimal("0.00"):
+            if account.type == "credit_card":
+                opening_type = "debit" if new_balance > Decimal("0.00") else "credit"
+            else:
+                opening_type = "credit" if new_balance > Decimal("0.00") else "debit"
+            opening_amount = abs(new_balance)
+
             if opening_tx:
-                opening_tx.amount = new_balance
+                opening_tx.amount = opening_amount
                 opening_tx.type = opening_type
                 if balance_date:
                     opening_tx.date = balance_date
@@ -266,7 +276,7 @@ async def update_account(
                     company_id=account.company_id,
                     account_id=account_id,
                     description="Saldo inicial",
-                    amount=new_balance,
+                    amount=opening_amount,
                     currency=account.currency,
                     date=balance_date or _Date.today(),
                     type=opening_type,

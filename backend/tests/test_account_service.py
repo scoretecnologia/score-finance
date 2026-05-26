@@ -167,6 +167,26 @@ async def test_create_account_with_balance_date(session: AsyncSession, test_user
     assert opening.date == custom_date
 
 
+@pytest.mark.asyncio
+async def test_create_account_with_negative_balance(session: AsyncSession, test_user):
+    """Creating an account with a negative balance creates a debit opening transaction."""
+    data = AccountCreate(name="Overdraft", type="checking", balance=Decimal("-250.50"), currency="BRL")
+    account = await create_account(session, test_user.id, data)
+
+    assert account.balance == Decimal("-250.50")
+
+    from sqlalchemy import select
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.account_id == account.id,
+            Transaction.source == "opening_balance",
+        )
+    )
+    opening = result.scalar_one()
+    assert opening.amount == Decimal("250.50")
+    assert opening.type == "debit"
+
+
 # ---------------------------------------------------------------------------
 # update_account
 # ---------------------------------------------------------------------------
@@ -262,6 +282,27 @@ async def test_update_account_balance_with_date(session: AsyncSession, test_user
     opening = result.scalar_one()
     assert opening.date == new_date
     assert opening.amount == Decimal("1500.00")
+
+
+@pytest.mark.asyncio
+async def test_update_account_balance_to_negative(session: AsyncSession, test_user):
+    """Updating balance to a negative value creates/updates opening transaction as a debit."""
+    data = AccountCreate(name="Checking", type="checking", balance=Decimal("100.00"), currency="BRL")
+    account = await create_account(session, test_user.id, data)
+
+    update_data = AccountUpdate(balance=Decimal("-50.00"))
+    await update_account(session, account.id, test_user.id, update_data)
+
+    from sqlalchemy import select
+    result = await session.execute(
+        select(Transaction).where(
+            Transaction.account_id == account.id,
+            Transaction.source == "opening_balance",
+        )
+    )
+    opening = result.scalar_one()
+    assert opening.amount == Decimal("50.00")
+    assert opening.type == "debit"
 
 
 @pytest.mark.asyncio
