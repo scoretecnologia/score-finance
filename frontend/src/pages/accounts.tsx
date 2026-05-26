@@ -608,21 +608,72 @@ function AccountDialog({
   const [name, setName] = useState(account?.name ?? '')
   const [displayName, setDisplayName] = useState(account?.display_name ?? '')
   const [type, setType] = useState(account?.type ?? 'checking')
-  const [balance, setBalance] = useState(account?.balance?.toString() ?? '0')
+  const [balance, setBalance] = useState('R$ 0,00')
   const [currency, setCurrency] = useState('BRL')
   const [balanceDate, setBalanceDate] = useState(new Date().toISOString().slice(0, 10))
-  const [creditLimit, setCreditLimit] = useState(account?.credit_limit?.toString() ?? '')
+  const [creditLimit, setCreditLimit] = useState('')
   const [statementCloseDay, setStatementCloseDay] = useState(account?.statement_close_day?.toString() ?? '')
   const [paymentDueDay, setPaymentDueDay] = useState(account?.payment_due_day?.toString() ?? '')
+
+  const parseCurrencyString = (val: string): number => {
+    const isNegative = val.includes('-');
+    const digits = val.replace(/\D/g, '');
+    if (!digits) return 0;
+    const numericValue = parseInt(digits, 10) / 100;
+    return isNegative ? -numericValue : numericValue;
+  }
+
+  const formatCurrencyValue = (num: number): string => {
+    const formatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(Math.abs(num));
+    return num < 0 ? `- ${formatted}` : formatted;
+  }
+
+  const handleBalanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value;
+    const hadMinus = balance.includes('-');
+    const minusCount = (rawVal.match(/-/g) || []).length;
+    const shouldBeNegative = hadMinus ? (minusCount !== 1) : (minusCount > 0);
+
+    const digits = rawVal.replace(/\D/g, '');
+    if (!digits || digits === '00' || digits === '0') {
+      setBalance(shouldBeNegative ? '- R$ 0,00' : 'R$ 0,00');
+      return;
+    }
+    
+    const cents = parseInt(digits, 10);
+    const num = (cents / 100) * (shouldBeNegative ? -1 : 1);
+    setBalance(formatCurrencyValue(num));
+  };
+
+  const handleCreditLimitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value;
+    const digits = rawVal.replace(/\D/g, '');
+    if (!digits || digits === '00' || digits === '0') {
+      setCreditLimit('');
+      return;
+    }
+    const cents = parseInt(digits, 10);
+    const num = cents / 100;
+    setCreditLimit(formatCurrencyValue(num));
+  };
 
   useEffect(() => {
     setName(account?.name ?? '')
     setDisplayName(account?.display_name ?? '')
     setType(account?.type ?? 'checking')
-    setBalance(account?.balance?.toString() ?? '0')
+    
+    const initialBalance = account ? Number(account.balance ?? 0) : 0;
+    setBalance(formatCurrencyValue(initialBalance));
+    
     setCurrency('BRL')
     setBalanceDate(new Date().toISOString().slice(0, 10))
-    setCreditLimit(account?.credit_limit?.toString() ?? '')
+    
+    const initialLimit = account?.credit_limit ? Number(account.credit_limit) : null;
+    setCreditLimit(initialLimit !== null ? formatCurrencyValue(initialLimit) : '');
+    
     setStatementCloseDay(account?.statement_close_day?.toString() ?? '')
     setPaymentDueDay(account?.payment_due_day?.toString() ?? '')
   }, [account])
@@ -645,11 +696,13 @@ function AccountDialog({
               return Number.isFinite(n) && n >= 1 && n <= 31 ? n : null
             }
             const isConnected = !!account?.connection_id
+            const parsedBalance = parseCurrencyString(balance)
+            const parsedLimit = creditLimit !== '' ? parseCurrencyString(creditLimit) : null
             onSave({
-              ...(!isConnected && { name, type, balance: parseFloat(balance), balance_date: balanceDate, currency }),
+              ...(!isConnected && { name, type, balance: parsedBalance, balance_date: balanceDate, currency }),
               display_name: displayName.trim() || null,
               ...(isCC && {
-                credit_limit: creditLimit !== '' ? parseFloat(creditLimit) : null,
+                credit_limit: parsedLimit,
                 statement_close_day: parseDay(statementCloseDay),
                 payment_due_day: parseDay(paymentDueDay),
               }),
@@ -699,11 +752,9 @@ function AccountDialog({
                       : t('accounts.balance')}
                   </Label>
                   <Input
-                    type="number"
-                    step="0.01"
-                    min={type === 'credit_card' ? '0' : undefined}
+                    type="text"
                     value={balance}
-                    onChange={(e) => setBalance(e.target.value)}
+                    onChange={handleBalanceChange}
                   />
                 </div>
                 <div className="space-y-2">
@@ -727,12 +778,10 @@ function AccountDialog({
               <div className="space-y-2">
                 <Label>{t('accounts.creditLimit')}</Label>
                 <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                  type="text"
                   value={creditLimit}
-                  onChange={(e) => setCreditLimit(e.target.value)}
-                  placeholder="0.00"
+                  onChange={handleCreditLimitChange}
+                  placeholder="R$ 0,00"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
