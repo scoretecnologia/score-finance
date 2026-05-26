@@ -106,7 +106,16 @@ async def get_account(
     account = await account_service.get_account(session, account_id, company.id)
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return account_service.serialize_account(account, None, None)
+    from app.models.transaction import Transaction
+    from sqlalchemy import select
+    date_res = await session.execute(
+        select(Transaction.date).where(
+            Transaction.account_id == account.id,
+            Transaction.source == "opening_balance"
+        ).limit(1)
+    )
+    opening_date = date_res.scalar()
+    return account_service.serialize_account(account, None, None, opening_date)
 
 
 @router.post("", response_model=AccountRead, status_code=status.HTTP_201_CREATED)
@@ -117,7 +126,7 @@ async def create_account(
     company: Company = Depends(get_current_company),
 ):
     account = await account_service.create_account(session, company.id, data)
-    return account_service.serialize_account(account, None, None)
+    return account_service.serialize_account(account, None, None, data.balance_date)
 
 
 @router.patch("/{account_id}", response_model=AccountRead)
@@ -134,7 +143,16 @@ async def update_account(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
-    return account_service.serialize_account(account, None, None)
+    from app.models.transaction import Transaction
+    from sqlalchemy import select
+    date_res = await session.execute(
+        select(Transaction.date).where(
+            Transaction.account_id == account.id,
+            Transaction.source == "opening_balance"
+        ).limit(1)
+    )
+    opening_date = date_res.scalar()
+    return account_service.serialize_account(account, None, None, opening_date)
 
 
 @router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -669,7 +669,7 @@ function AccountDialog({
     setBalance(formatCurrencyValue(initialBalance));
     
     setCurrency('BRL')
-    setBalanceDate(new Date().toISOString().slice(0, 10))
+    setBalanceDate(account?.balance_date ?? new Date().toISOString().slice(0, 10))
     
     const initialLimit = account?.credit_limit ? Number(account.credit_limit) : null;
     setCreditLimit(initialLimit !== null ? formatCurrencyValue(initialLimit) : '');

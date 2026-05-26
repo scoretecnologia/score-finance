@@ -61,6 +61,7 @@ class AccountRead(AccountBase):
     card_level: Optional[str] = None
     is_closed: bool = False
     closed_at: Optional[datetime] = None
+    balance_date: Optional[date] = None
 
     model_config = ConfigDict(from_attributes=True)
 

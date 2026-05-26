@@ -56,16 +56,28 @@ async def get_accounts(session: AsyncSession, company_id: uuid.UUID, include_clo
         .subquery()
     )
 
+    # Subquery: get the date of the opening_balance transaction for each account
+    opening_date_sq = (
+        select(
+            Transaction.account_id,
+            Transaction.date.label("balance_date")
+        )
+        .where(Transaction.source == "opening_balance")
+        .subquery()
+    )
+
     # Build the query
     query = (
         select(
             Account,
             func.coalesce(balance_sq.c.current_balance, 0).label("current_balance"),
             func.coalesce(prev_balance_sq.c.previous_balance, 0).label("previous_balance"),
+            opening_date_sq.c.balance_date.label("balance_date"),
         )
         .outerjoin(BankConnection)
         .outerjoin(balance_sq, Account.id == balance_sq.c.account_id)
         .outerjoin(prev_balance_sq, Account.id == prev_balance_sq.c.account_id)
+        .outerjoin(opening_date_sq, Account.id == opening_date_sq.c.account_id)
         .where(
             or_(
                 Account.company_id == company_id,
@@ -79,8 +91,8 @@ async def get_accounts(session: AsyncSession, company_id: uuid.UUID, include_clo
     result = await session.execute(query)
 
     return [
-        serialize_account(acc, current_balance, previous_balance)
-        for acc, current_balance, previous_balance in result.all()
+        serialize_account(acc, current_balance, previous_balance, balance_date)
+        for acc, current_balance, previous_balance, balance_date in result.all()
     ]
 
 
@@ -88,6 +100,7 @@ def serialize_account(
     acc: Account,
     current_balance: Optional[Decimal],
     previous_balance: Optional[Decimal],
+    balance_date: Optional[_Date] = None,
 ) -> dict:
     # Connected CC: provider stores positive for debt → negate.
     # Manual accounts: transaction math already gives correct sign.
@@ -110,6 +123,7 @@ def serialize_account(
         "previous_balance": float(previous_balance or 0),
         "is_closed": acc.is_closed,
         "closed_at": acc.closed_at,
+        "balance_date": balance_date,
         "credit_limit": float(acc.credit_limit) if acc.credit_limit is not None else None,
         "statement_close_day": acc.statement_close_day,
         "payment_due_day": acc.payment_due_day,
@@ -286,6 +300,17 @@ async def update_account(
                 session.add(opening_tx)
         elif opening_tx:
             await session.delete(opening_tx)
+    elif balance_date:
+        existing_opening = await session.execute(
+            select(Transaction).where(
+                Transaction.account_id == account_id,
+                Transaction.source == "opening_balance",
+            )
+        )
+        opening_tx = existing_opening.scalar_one_or_none()
+        if opening_tx:
+            opening_tx.date = balance_date
+            apply_effective_date(opening_tx, account)
 
     if cycle_fields_changed:
         await _recompute_effective_dates(session, account)
