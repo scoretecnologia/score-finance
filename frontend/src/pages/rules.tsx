@@ -18,10 +18,82 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import type { ChartAccount, Payee, Rule, RuleCondition, RuleAction } from '@/types'
-import { Trash2, Plus, RefreshCw, X, ArrowUpDown, ArrowUp, ArrowDown, Upload, Download } from 'lucide-react'
+import { Trash2, Plus, RefreshCw, X, ArrowUpDown, ArrowUp, ArrowDown, Upload, Download, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
 import { ChartAccountSelect } from '@/components/chart-account-select'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+
+function CategoryCombobox({ 
+  value, 
+  onChange, 
+  categories, 
+  placeholder,
+  error
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  categories: { id: string; name: string }[];
+  placeholder?: string;
+  error?: boolean;
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  
+  const selectedCat = categories.find(c => c.id === value)
+  const filtered = categories.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          className={cn(
+            "h-8 w-full rounded-md border border-input bg-background px-2 text-xs min-w-[220px] flex items-center justify-between text-left truncate",
+            error && !value && "border-rose-500 text-rose-500"
+          )}
+        >
+          <span className="truncate block pr-2">{selectedCat ? selectedCat.name : placeholder || "Selecione..."}</span>
+          <ArrowUpDown size={12} className="opacity-50 shrink-0 ml-1" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <div className="flex items-center border-b border-border px-3">
+          <Search size={14} className="opacity-50" />
+          <input
+            className="flex-1 h-9 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+            placeholder="Buscar categoria..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+        <div 
+          className="max-h-[200px] overflow-y-auto p-1"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          {filtered.length === 0 && (
+            <p className="p-2 text-center text-sm text-muted-foreground">Nenhuma encontrada.</p>
+          )}
+          {filtered.map(cat => (
+            <button
+              key={cat.id}
+              className={cn(
+                "w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-muted/50 transition-colors",
+                value === cat.id && "bg-primary/10 text-primary font-medium"
+              )}
+              onClick={() => {
+                onChange(cat.id)
+                setOpen(false)
+                setSearch('')
+              }}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -209,14 +281,12 @@ export default function RulesPage() {
   }, [rulesList, chartAccounts, sortBy, sortDir])
 
   function downloadTemplate() {
-    const header = ['name', 'conditions_op', 'priority', 'is_active', 'conditions', 'actions']
+    const header = ['Nome da Regra', 'Descrição', 'Tipo', 'Categoria']
     const example = {
-      name: 'Uber',
-      conditions_op: 'or',
-      priority: 10,
-      is_active: true,
-      conditions: JSON.stringify([{ field: 'description', op: 'starts_with', value: 'UBER' }]),
-      actions: JSON.stringify([{ op: 'append_notes', value: 'tag:uber' }]),
+      'Nome da Regra': 'Uber',
+      'Descrição': 'UBER',
+      'Tipo': 'debit',
+      'Categoria': 'Transporte',
     }
 
     const ws = XLSX.utils.json_to_sheet([example], { header })
@@ -422,79 +492,132 @@ function parseJsonArray(val: unknown) {
   return null
 }
 
+type ParsedRuleRow = {
+  id: number
+  name: string
+  description: string
+  type: string
+  categoryId: string
+}
+
 function ImportRulesDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const [step, setStep] = useState<1 | 2>(1)
   const [isImporting, setIsImporting] = useState(false)
-  const [fileName, setFileName] = useState<string | null>(null)
+  const [parsedRows, setParsedRows] = useState<ParsedRuleRow[]>([])
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkCategory, setBulkCategory] = useState<string>('')
+
+  const { data: chartAccountsList } = useQuery({
+    queryKey: ['chart-accounts'],
+    queryFn: chartAccountsApi.list,
+  })
+  const chartAccounts = useMemo(() => {
+    return [...(chartAccountsList ?? [])].sort((a, b) => a.name.localeCompare(b.name))
+  }, [chartAccountsList])
 
   async function handleFile(file: File) {
     setIsImporting(true)
-    setFileName(file.name)
     try {
       const buf = await file.arrayBuffer()
       const wb = XLSX.read(buf, { type: 'array' })
-      const sheetName = wb.SheetNames[0]
-      const ws = wb.Sheets[sheetName]
+      const ws = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as Record<string, unknown>[]
 
-      const parsedRules: Omit<Rule, 'id' | 'user_id'>[] = []
-      const errors: string[] = []
-
+      const newRows: ParsedRuleRow[] = []
       rows.forEach((row, idx) => {
-        const name = String(row.name ?? '').trim()
-        if (!name) {
-          errors.push(t('rules.importRowMissingName', { row: idx + 2 }))
-          return
+        const name = String(row['Nome da Regra'] ?? '').trim()
+        if (!name) return
+
+        const description = String(row['Descrição'] ?? '').trim()
+        const rawType = String(row['Tipo'] ?? '').trim().toLowerCase()
+        const type = rawType === 'crédito' || rawType === 'credito' || rawType === 'credit' ? 'credit' : 'debit'
+        
+        const categoryName = String(row['Categoria'] ?? '').trim()
+        let categoryId = ''
+        if (categoryName) {
+          const match = chartAccounts.find(c => c.name.toLowerCase() === categoryName.toLowerCase())
+          if (match) categoryId = match.id
         }
 
-        const conditions = parseJsonArray(row.conditions)
-        if (!conditions) {
-          errors.push(t('rules.importRowInvalidConditions', { row: idx + 2 }))
-          return
-        }
-
-        const actions = parseJsonArray(row.actions)
-        if (!actions) {
-          errors.push(t('rules.importRowInvalidActions', { row: idx + 2 }))
-          return
-        }
-
-        const conditionsOpRaw = String(row.conditions_op ?? 'and').trim().toLowerCase()
-        const conditions_op = (conditionsOpRaw === 'or' ? 'or' : 'and') as 'and' | 'or'
-        const priority = Number(row.priority ?? 0) || 0
-        const is_active = parseBoolean(row.is_active, true)
-
-        parsedRules.push({
+        newRows.push({
+          id: idx,
           name,
-          conditions_op,
-          priority,
-          is_active,
-          conditions: conditions as RuleCondition[],
-          actions: actions as RuleAction[],
+          description,
+          type,
+          categoryId
         })
       })
 
-      if (errors.length > 0) {
-        toast.error(errors[0])
-        return
-      }
-
-      if (parsedRules.length === 0) {
+      if (newRows.length === 0) {
         toast.error(t('rules.importEmpty'))
         return
       }
 
-      const res = await rulesApi.bulkImport(parsedRules)
+      setParsedRows(newRows)
+      setStep(2)
+    } catch {
+      toast.error(t('common.error'))
+    } finally {
+      setIsImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  function toggleAll() {
+    if (selectedIds.size === parsedRows.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(parsedRows.map(r => r.id)))
+    }
+  }
+
+  function toggleOne(id: number) {
+    const next = new Set(selectedIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedIds(next)
+  }
+
+  function applyBulkCategory() {
+    if (!bulkCategory) return
+    setParsedRows(prev => prev.map(r => selectedIds.has(r.id) ? { ...r, categoryId: bulkCategory } : r))
+  }
+
+  async function handleConfirm() {
+    const invalid = parsedRows.some(r => !r.categoryId)
+    if (invalid) {
+      toast.error('Selecione a categoria para todas as regras.')
+      return
+    }
+
+    const rulesToImport: Omit<Rule, 'id' | 'user_id'>[] = parsedRows.map(r => {
+      const conditions: RuleCondition[] = []
+      if (r.description) conditions.push({ field: 'description', op: 'contains', value: r.description })
+      conditions.push({ field: 'type', op: 'equals', value: r.type })
+
+      return {
+        name: r.name,
+        conditions_op: 'and',
+        priority: 0,
+        is_active: true,
+        conditions,
+        actions: [{ op: 'set_category', value: r.categoryId }]
+      }
+    })
+
+    setIsImporting(true)
+    try {
+      const res = await rulesApi.bulkImport(rulesToImport)
       queryClient.invalidateQueries({ queryKey: ['rules'] })
       const msg = res.skipped > 0
         ? t('rules.importedWithSkipped', { imported: res.imported, skipped: res.skipped })
         : t('rules.imported', { count: res.imported })
       toast.success(msg)
-      onClose()
-      setFileName(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      handleClose()
     } catch {
       toast.error(t('common.error'))
     } finally {
@@ -502,53 +625,147 @@ function ImportRulesDialog({ open, onClose }: { open: boolean; onClose: () => vo
     }
   }
 
+  function handleClose() {
+    setStep(1)
+    setParsedRows([])
+    setSelectedIds(new Set())
+    setBulkCategory('')
+    onClose()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg">
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className={step === 2 ? 'sm:max-w-6xl max-w-[95vw]' : 'sm:max-w-lg max-w-[95vw]'}>
         <DialogHeader>
           <DialogTitle>{t('rules.importTitle')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">{t('rules.importHelp')}</p>
-          <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
-            name, conditions_op, priority, is_active, conditions, actions
+        {step === 1 && (
+          <>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Baixe o template, preencha e importe aqui.</p>
+              <div className="text-xs text-muted-foreground font-mono bg-muted/40 rounded-lg p-3 border border-border">
+                Nome da Regra, Descrição, Tipo, Categoria
+              </div>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) void handleFile(file)
+              }}
+            />
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={handleClose}>{t('common.cancel')}</Button>
+              <Button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="gap-2">
+                <Upload size={14} />
+                {isImporting ? t('common.loading') : t('rules.selectFile')}
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="flex items-end gap-2 bg-muted/50 p-3 rounded-lg border border-border">
+              <div className="flex-1">
+                <Label className="text-xs text-muted-foreground mb-1 block">Categorizar selecionados</Label>
+                <div className="h-9">
+                  <CategoryCombobox
+                    value={bulkCategory}
+                    onChange={setBulkCategory}
+                    categories={chartAccounts}
+                    placeholder="Selecione uma categoria..."
+                  />
+                </div>
+              </div>
+              <Button variant="secondary" size="sm" className="h-8" onClick={applyBulkCategory}>
+                Aplicar
+              </Button>
+            </div>
+
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="max-h-[400px] overflow-y-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted text-muted-foreground sticky top-0 z-10 text-xs">
+                    <tr>
+                      <th className="px-3 py-2 w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded border-border"
+                          checked={parsedRows.length > 0 && selectedIds.size === parsedRows.length}
+                          onChange={toggleAll}
+                        />
+                      </th>
+                      <th className="px-3 py-2 font-medium">Regra</th>
+                      <th className="px-3 py-2 font-medium">Descrição</th>
+                      <th className="px-3 py-2 font-medium">Tipo</th>
+                      <th className="px-3 py-2 font-medium">Categoria</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {parsedRows.map((row, i) => (
+                      <tr key={row.id} className="hover:bg-muted/50">
+                        <td className="px-3 py-2">
+                          <input
+                            type="checkbox"
+                            className="rounded border-border"
+                            checked={selectedIds.has(row.id)}
+                            onChange={() => toggleOne(row.id)}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input 
+                            className="h-8 text-xs min-w-[160px]" 
+                            value={row.name}
+                            onChange={(e) => setParsedRows(prev => prev.map(r => r.id === row.id ? { ...r, name: e.target.value } : r))}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <Input 
+                            className="h-8 text-xs min-w-[200px] whitespace-normal" 
+                            value={row.description}
+                            onChange={(e) => setParsedRows(prev => prev.map(r => r.id === row.id ? { ...r, description: e.target.value } : r))}
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            className="h-8 w-full rounded-md border border-input bg-background px-2 text-xs min-w-[120px]"
+                            value={row.type}
+                            onChange={(e) => setParsedRows(prev => prev.map(r => r.id === row.id ? { ...r, type: e.target.value } : r))}
+                          >
+                            <option value="debit">Despesa</option>
+                            <option value="credit">Receita</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <CategoryCombobox
+                            value={row.categoryId}
+                            onChange={(val) => setParsedRows(prev => prev.map(r => r.id === row.id ? { ...r, categoryId: val } : r))}
+                            categories={chartAccounts}
+                            error={true}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={handleClose}>{t('common.cancel')}</Button>
+              <Button onClick={handleConfirm} disabled={isImporting}>
+                {isImporting ? t('common.loading') : 'Confirmar Importação'}
+              </Button>
+            </DialogFooter>
           </div>
-        </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void handleFile(file)
-          }}
-        />
-
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              setFileName(null)
-              if (fileInputRef.current) fileInputRef.current.value = ''
-              onClose()
-            }}
-          >
-            {t('common.cancel')}
-          </Button>
-          <Button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isImporting}
-            className="gap-2"
-          >
-            <Upload size={14} />
-            {isImporting ? (fileName ?? t('rules.importing')) : t('rules.selectFile')}
-          </Button>
-        </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   )

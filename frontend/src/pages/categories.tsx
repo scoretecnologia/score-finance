@@ -596,10 +596,8 @@ export default function CategoriesPage() {
                 name,
                 code: (formData.get('code') as string) || null,
                 category_id,
-              }
-              if (!editingAccount || (editingAccount.category_id !== category_id)) {
-                data.icon = category?.icon
-                data.color = category?.color
+                icon: formData.get('icon') as string,
+                color: formData.get('color') as string,
               }
               if (editingAccount) {
                 updateAccountMutation.mutate({ id: editingAccount.id, ...data })
@@ -632,6 +630,15 @@ export default function CategoriesPage() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t('groups.color')}</Label>
+              <Input name="color" type="color" value={formColor} onChange={(e) => setFormColor(e.target.value)} required className="h-11 px-2 py-1" />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('groups.icon')}</Label>
+              <IconPicker value={formIcon} color={formColor} onChange={setFormIcon} />
+              <input type="hidden" name="icon" value={formIcon} />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => { setAccountDialogOpen(false); setEditingAccount(null) }}>

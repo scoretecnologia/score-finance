@@ -485,8 +485,8 @@ export default function TransactionsPage() {
                     className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                   />
                 </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2">{t('transactions.description')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[180px]">{t('transactions.category')}</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[30%] md:w-[40%]">{t('transactions.description')}</TableHead>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[260px]">{t('transactions.category')}</TableHead>
                 <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px]">{t('transactions.account')}</TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px]">{t('transactions.amount')}</TableHead>
               </TableRow>
@@ -566,9 +566,14 @@ export default function TransactionsPage() {
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell py-2.5">
+                  <TableCell className="hidden md:table-cell py-2.5 max-w-[260px]">
                     {(tx.chart_account || tx.category) ? (
-                      <span className="text-sm text-muted-foreground">{tx.chart_account?.name ?? tx.category?.name}</span>
+                      <div className="flex items-center gap-2">
+                        <CategoryIcon icon={tx.chart_account?.icon ?? tx.category?.icon} color={tx.chart_account?.color ?? tx.category?.color} size="sm" />
+                        <span className="text-sm font-medium truncate" style={{ color: tx.chart_account?.color ?? tx.category?.color }}>
+                          {tx.chart_account?.name ?? tx.category?.name}
+                        </span>
+                      </div>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">{t('transactions.noCategory')}</span>
                     )}
