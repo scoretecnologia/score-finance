@@ -459,6 +459,18 @@ export default function RulesPage() {
           if (editing) {
             updateMutation.mutate({ id: editing.id, ...data })
           } else {
+      <RuleDialog
+        key={editing?.id ?? 'new'}
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditing(null) }}
+        rule={editing}
+        
+        accounts={accountsList ?? []}
+        payees={payees}
+        onSave={(data) => {
+          if (editing) {
+            updateMutation.mutate({ id: editing.id, ...data })
+          } else {
             createMutation.mutate(data as Omit<Rule, 'id' | 'user_id'>)
           }
         }}
@@ -466,30 +478,6 @@ export default function RulesPage() {
       />
     </div>
   )
-}
-
-function parseBoolean(val: unknown, defaultValue: boolean) {
-  if (val === null || val === undefined || val === '') return defaultValue
-  if (typeof val === 'boolean') return val
-  if (typeof val === 'number') return val !== 0
-  if (typeof val === 'string') {
-    const v = val.trim().toLowerCase()
-    if (['true', '1', 'sim', 's', 'yes', 'y'].includes(v)) return true
-    if (['false', '0', 'nao', 'não', 'n', 'no'].includes(v)) return false
-  }
-  return defaultValue
-}
-
-function parseJsonArray(val: unknown) {
-  if (Array.isArray(val)) return val
-  if (val === null || val === undefined || val === '') return null
-  if (typeof val === 'string') {
-    const trimmed = val.trim()
-    if (!trimmed) return null
-    const parsed = JSON.parse(trimmed)
-    return Array.isArray(parsed) ? parsed : null
-  }
-  return null
 }
 
 type ParsedRuleRow = {
@@ -709,7 +697,7 @@ function ImportRulesDialog({ open, onClose }: { open: boolean; onClose: () => vo
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {parsedRows.map((row, i) => (
+                    {parsedRows.map((row) => (
                       <tr key={row.id} className="hover:bg-muted/50">
                         <td className="px-3 py-2">
                           <input

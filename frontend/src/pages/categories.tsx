@@ -591,7 +591,6 @@ export default function CategoriesPage() {
               const formData = new FormData(e.currentTarget)
               const name = (formData.get('name') as string).trim()
               const category_id = formData.get('category_id') as string
-              const category = categoriesList?.find((c) => c.id === category_id)
               const data: Partial<ChartAccount> = {
                 name,
                 code: (formData.get('code') as string) || null,
