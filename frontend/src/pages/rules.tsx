@@ -452,19 +452,6 @@ export default function RulesPage() {
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null) }}
         rule={editing}
-        
-        accounts={accountsList ?? []}
-        payees={payees}
-        onSave={(data) => {
-          if (editing) {
-            updateMutation.mutate({ id: editing.id, ...data })
-          } else {
-      <RuleDialog
-        key={editing?.id ?? 'new'}
-        open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditing(null) }}
-        rule={editing}
-        
         accounts={accountsList ?? []}
         payees={payees}
         onSave={(data) => {
