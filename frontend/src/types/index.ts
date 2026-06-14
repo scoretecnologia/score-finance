@@ -155,9 +155,7 @@ export interface Transaction {
   amount_primary: number | null
   fx_rate_used: number | null
   fx_fallback: boolean
-  category?: Category
-  chart_account?: ChartAccount
-  cost_center?: CostCenter
+  cost_center: CostCenter | null
   payee_entity?: Payee
   attachment_count?: number
   installment_number: number | null

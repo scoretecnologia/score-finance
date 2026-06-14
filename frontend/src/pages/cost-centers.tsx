@@ -24,7 +24,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { PageHeader } from '@/components/page-header'
-import { Search, Trash2 } from 'lucide-react'
+import { Search } from 'lucide-react'
 import type { CostCenter } from '@/types'
 
 export default function CostCentersPage() {
@@ -65,17 +65,7 @@ export default function CostCentersPage() {
     onError: () => toast.error(t('common.error')),
   })
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => costCentersApi.delete(id),
-    onSuccess: () => {
-      invalidateFinancialQueries(queryClient)
-      queryClient.invalidateQueries({ queryKey: ['cost-centers'] })
-      setDialogOpen(false)
-      setEditingCostCenter(null)
-      toast.success(t('costCenters.deleted'))
-    },
-    onError: () => toast.error(t('common.error')),
-  })
+
 
   const openCreate = () => {
     setEditingCostCenter(null)
