@@ -485,8 +485,9 @@ export default function TransactionsPage() {
                     className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
                   />
                 </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[30%] md:w-[40%]">{t('transactions.description')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[260px]">{t('transactions.category')}</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[30%]">{t('transactions.description')}</TableHead>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.category')}</TableHead>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.notes')}</TableHead>
                 <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px]">{t('transactions.account')}</TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px]">{t('transactions.amount')}</TableHead>
               </TableRow>
@@ -541,32 +542,10 @@ export default function TransactionsPage() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">{new Date(tx.date + 'T00:00:00').toLocaleDateString(locale)}</p>
-                        {tx.notes && (
-                          <div className="mt-1 space-y-0.5">
-                            {tx.notes.replace(/#[\w\u00C0-\u017E-]+/g, '').trim() && (
-                              <p className="text-xs text-muted-foreground italic leading-snug">
-                                {tx.notes.replace(/#[\w\u00C0-\u017E-]+/g, '').trim()}
-                              </p>
-                            )}
-                            {parseHashtags(tx.notes).length > 0 && (
-                              <div className="flex flex-wrap gap-1">
-                                {parseHashtags(tx.notes).map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="inline-block text-[11px] font-medium bg-primary/5 text-primary border border-primary/10 px-1.5 py-0 rounded-full leading-5 cursor-pointer hover:bg-primary/10 transition-colors"
-                                    onClick={(e) => { e.stopPropagation(); setTagFilter(tag) }}
-                                  >
-                                    {tag}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="hidden md:table-cell py-2.5 max-w-[260px]">
+                  <TableCell className="hidden md:table-cell py-2.5 max-w-[200px]">
                     {(tx.chart_account || tx.category) ? (
                       <div className="flex items-center gap-2">
                         <CategoryIcon icon={tx.chart_account?.icon ?? tx.category?.icon} color={tx.chart_account?.color ?? tx.category?.color} size="sm" />
@@ -576,6 +555,31 @@ export default function TransactionsPage() {
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground italic">{t('transactions.noCategory')}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell py-2.5 max-w-[200px]">
+                    {tx.notes && (
+                      <div className="space-y-0.5">
+                        {tx.notes.replace(/#[\w\u00C0-\u017E-]+/g, '').trim() && (
+                          <p className="text-xs text-muted-foreground italic leading-snug line-clamp-2" title={tx.notes.replace(/#[\w\u00C0-\u017E-]+/g, '').trim()}>
+                            {tx.notes.replace(/#[\w\u00C0-\u017E-]+/g, '').trim()}
+                          </p>
+                        )}
+                        {parseHashtags(tx.notes).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {parseHashtags(tx.notes).map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-block text-[11px] font-medium bg-primary/5 text-primary border border-primary/10 px-1.5 py-0 rounded-full leading-5 cursor-pointer hover:bg-primary/10 transition-colors truncate max-w-[120px]"
+                                onClick={(e) => { e.stopPropagation(); setTagFilter(tag) }}
+                                title={tag}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </TableCell>
                   <TableCell className="hidden lg:table-cell py-2.5 text-sm text-muted-foreground">

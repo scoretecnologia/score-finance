@@ -23,7 +23,7 @@ export default defineConfig({
     allowedHosts: frontendHost,
     proxy: {
       '/api': {
-        target: process.env.BACKEND_URL ?? 'http://localhost:8003',
+        target: process.env.BACKEND_URL ?? 'http://localhost:8000',
         changeOrigin: true,
       },
     },

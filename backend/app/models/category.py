@@ -35,4 +35,4 @@ class Category(Base):
     company: Mapped["Company"] = relationship()
     created_by: Mapped[Optional["User"]] = relationship(foreign_keys=[created_by_user_id], back_populates="categories")
     group: Mapped[Optional["CategoryGroup"]] = relationship(back_populates="categories")
-    chart_accounts: Mapped[list["ChartAccount"]] = relationship(back_populates="category", cascade="all, delete-orphan")
+    chart_accounts: Mapped[list["ChartAccount"]] = relationship(back_populates="category", cascade="all, delete-orphan", order_by="ChartAccount.code.asc()")

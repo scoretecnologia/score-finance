@@ -138,6 +138,7 @@ export interface Transaction {
   category: Category | null
   chart_account_id: string | null
   chart_account: ChartAccount | null
+  cost_center_id: string | null
   external_id: string | null
   description: string
   amount: number
@@ -154,6 +155,10 @@ export interface Transaction {
   amount_primary: number | null
   fx_rate_used: number | null
   fx_fallback: boolean
+  category?: Category
+  chart_account?: ChartAccount
+  cost_center?: CostCenter
+  payee_entity?: Payee
   attachment_count?: number
   installment_number: number | null
   total_installments: number | null
@@ -213,6 +218,15 @@ export interface ImportLog {
   transaction_count: number
   total_credit: number
   total_debit: number
+  created_at: string
+}
+
+export interface CostCenter {
+  id: string
+  company_id: string
+  name: string
+  code: number
+  is_active: boolean
   created_at: string
 }
 

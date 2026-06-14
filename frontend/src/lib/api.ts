@@ -31,6 +31,7 @@ import type {
   BalanceHistory,
   PaginatedResponse,
   ReportResponse,
+  CostCenter,
 } from '@/types'
 
 const api = axios.create({
@@ -172,6 +173,24 @@ export const chartAccounts = {
   },
   delete: async (id: string): Promise<void> => {
     await api.delete(`/chart-accounts/${id}`)
+  },
+}
+
+export const costCenters = {
+  list: async (params?: { is_active?: boolean }): Promise<CostCenter[]> => {
+    const { data } = await api.get('/cost-centers', { params })
+    return data
+  },
+  create: async (costCenter: Partial<CostCenter>): Promise<CostCenter> => {
+    const { data } = await api.post('/cost-centers', costCenter)
+    return data
+  },
+  update: async (id: string, costCenter: Partial<CostCenter>): Promise<CostCenter> => {
+    const { data } = await api.patch(`/cost-centers/${id}`, costCenter)
+    return data
+  },
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/cost-centers/${id}`)
   },
 }
 

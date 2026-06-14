@@ -29,6 +29,7 @@ import { ShellLogo } from '@/components/shell-logo'
 import {
   LayoutDashboard,
   ArrowLeftRight,
+  Building,
   Building2,
   SlidersHorizontal,
   Upload,
@@ -81,6 +82,7 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'goals',        path: '/goals',        icon: Target },
   { type: 'link', key: 'recurring',    path: '/recurring',    icon: Repeat },
   { type: 'link', key: 'categories',   path: '/categories',   icon: Tag },
+  { type: 'link', key: 'costCenters',  path: '/cost-centers', icon: Building },
   { type: 'link', key: 'payees',      path: '/payees',       icon: Users },
   { type: 'link', key: 'rules',        path: '/rules',        icon: SlidersHorizontal },
   { type: 'separator', labelKey: 'nav.groupAdmin', requiredRole: ['owner', 'admin'] },

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { transactions as transactionsApi, settings as settingsApi, payees as payeesApi } from '@/lib/api'
+import { transactions as transactionsApi, settings as settingsApi, payees as payeesApi, costCenters as costCentersApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -293,6 +293,10 @@ function TransactionForm({
     queryKey: ['payees'],
     queryFn: payeesApi.list,
   })
+  const { data: costCentersList } = useQuery({
+    queryKey: ['cost-centers'],
+    queryFn: () => costCentersApi.list(),
+  })
   const seed = transaction ?? duplicateDraft
   const [description, setDescription] = useState(seed?.description ?? '')
   const [amount, setAmount] = useState(seed?.amount?.toString() ?? '')
@@ -300,6 +304,7 @@ function TransactionForm({
   const [type, setType] = useState<'debit' | 'credit'>(seed?.type ?? 'debit')
   const currency = 'BRL'
   const [chartAccountId, setChartAccountId] = useState(seed?.chart_account_id ?? '')
+  const [costCenterId, setCostCenterId] = useState(seed?.cost_center_id ?? '')
   const [payeeId, setPayeeId] = useState(seed?.payee_id ?? '')
   const [accountId, setAccountId] = useState(seed?.account_id ?? accounts[0]?.id ?? '')
   const [notes, setNotes] = useState(seed?.notes ?? '')
@@ -374,6 +379,7 @@ function TransactionForm({
         const txData = isSynced
           ? {
               chart_account_id: chartAccountId || null,
+              cost_center_id: costCenterId || null,
               payee_id: payeeId || null,
               notes: notes.trim() || null,
             } as Partial<Transaction>
@@ -384,6 +390,7 @@ function TransactionForm({
               type,
               currency,
               chart_account_id: chartAccountId || null,
+              cost_center_id: costCenterId || null,
               payee_id: payeeId || null,
               account_id: accountId || undefined,
               notes: notes.trim() || null,
@@ -500,7 +507,20 @@ function TransactionForm({
           />
         </div>
       </div>
-      <div className={cn("grid gap-4", isSynced ? "grid-cols-1" : "grid-cols-2")}>
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>{t('transactions.costCenter', 'Centro de Custo')}</Label>
+          <select
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            value={costCenterId}
+            onChange={(e) => setCostCenterId(e.target.value)}
+          >
+            <option value="">{t('transactions.noCostCenter', 'Sem centro de custo')}</option>
+            {(costCentersList ?? []).filter(cc => cc.is_active || cc.id === costCenterId).map((cc) => (
+              <option key={cc.id} value={cc.id}>{cc.name}</option>
+            ))}
+          </select>
+        </div>
         <div className="space-y-2">
           <Label>{t('payees.payee')}</Label>
           <select
