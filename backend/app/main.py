@@ -16,6 +16,7 @@ from app.api.custom_auth import router as custom_auth_router
 from app.api.dashboard import router as dashboard_router
 from app.api.import_logs import router as import_logs_router
 from app.api.import_transactions import router as import_router
+from app.api.credit_card_invoices import router as credit_card_invoices_router
 from app.api.recurring_transactions import router as recurring_router
 from app.api.rules import router as rules_router
 from app.api.assets import router as assets_router
@@ -114,6 +115,7 @@ app.include_router(rules_router)
 app.include_router(transactions_router)
 app.include_router(import_router)
 app.include_router(import_logs_router)
+app.include_router(credit_card_invoices_router, prefix="/api/invoices", tags=["invoices"])
 app.include_router(accounts_router)
 app.include_router(connections_router)
 app.include_router(recurring_router)

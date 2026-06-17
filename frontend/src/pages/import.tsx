@@ -58,6 +58,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [geminiKey, setGeminiKey] = useState('')
   const [unselectedIndexes, setUnselectedIndexes] = useState<Set<number>>(new Set())
+  const [filterType, setFilterType] = useState<'all' | 'duplicates'>('all')
 
   // Mapping options
   const [mappingMode, setMappingMode] = useState(false)
@@ -175,6 +176,19 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     setMappingMode(false)
   }, [])
 
+  // Auto-deselect duplicates
+  useEffect(() => {
+    if (duplicateFlags && duplicateFlags.length > 0) {
+      setUnselectedIndexes(prev => {
+        const next = new Set(prev)
+        duplicateFlags.forEach((isDup, i) => {
+          if (isDup) next.add(i)
+        })
+        return next
+      })
+    }
+  }, [duplicateFlags])
+
   const startStreamingImport = useCallback(() => {
     if (!previewData || !selectedAccount) return
     const transactionsToImport = previewData.transactions.filter((_, i) => !unselectedIndexes.has(i))
@@ -205,6 +219,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
               ? t('import.importedWithSkipped', { imported: data.imported, skipped: data.skipped })
               : `${data.imported} ${t('import.transactionsImported')}`
             toast.success(msg)
+            
             setImportProgress(null)
             setPreviewData(null)
             setSelectedAccount('')
@@ -222,6 +237,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
           abortRef.current = null
         }
       },
+      true // ignore_duplicates
     )
 
     abortRef.current = abort
@@ -592,6 +608,50 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                 </div>
               )}
             </div>
+            {/* Filter and Bulk Actions */}
+            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex bg-muted rounded-md p-1">
+                <button
+                  onClick={() => setFilterType('all')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Todos
+                </button>
+                <button
+                  onClick={() => setFilterType('duplicates')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'duplicates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                >
+                  Apenas Duplicados
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUnselectedIndexes(new Set())}
+                  className="text-xs"
+                >
+                  Selecionar Tudo
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!duplicateFlags) return
+                    setUnselectedIndexes(prev => {
+                      const next = new Set(prev)
+                      duplicateFlags.forEach((isDup, i) => {
+                        if (isDup) next.add(i)
+                      })
+                      return next
+                    })
+                  }}
+                  className="text-xs"
+                >
+                  Desmarcar Duplicados
+                </Button>
+              </div>
+            </div>
           </div>
 
           <div className="max-h-96 overflow-auto">
@@ -601,17 +661,17 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                   <TableHead className="w-10 pl-5">
                     <input
                       type="checkbox"
-                      checked={unselectedIndexes.size === 0 && transactions.length > 0}
+                      checked={unselectedIndexes.size === 0 && previewData.transactions.length > 0}
                       ref={(input) => {
                         if (input) {
-                          input.indeterminate = unselectedIndexes.size > 0 && unselectedIndexes.size < transactions.length
+                          input.indeterminate = unselectedIndexes.size > 0 && unselectedIndexes.size < previewData.transactions.length
                         }
                       }}
                       onChange={(e) => {
                         if (e.target.checked) {
                           setUnselectedIndexes(new Set())
                         } else {
-                          setUnselectedIndexes(new Set(transactions.map((_, i) => i)))
+                          setUnselectedIndexes(new Set(previewData.transactions.map((_, i) => i)))
                         }
                       }}
                       className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
@@ -629,7 +689,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {previewData.transactions.slice(0, 50).map((tx, i) => {
+                {previewData.transactions.map((tx, i) => ({ tx, i })).filter(({ i }) => filterType === 'all' || (duplicateFlags && duplicateFlags[i])).slice(0, 50).map(({ tx, i }) => {
                   const isDuplicate = duplicateFlags?.[i] ?? false;
                   const isSelected = !unselectedIndexes.has(i);
                   return (
@@ -693,11 +753,11 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
             </button>
             <Button
               onClick={startStreamingImport}
-              disabled={!selectedAccount || !!importProgress || hasErrors || totalCount === 0}
+              disabled={!selectedAccount || !!importProgress || hasErrors || totalCount === 0 || previewData.transactions.length - unselectedIndexes.size === 0}
               className="gap-2"
             >
               <Upload size={14} />
-              {t('import.importButton', { count: previewData.transactions.length })}
+              {t('import.importButton', { count: previewData.transactions.length - unselectedIndexes.size })}
             </Button>
           </div>
         </div>
@@ -911,6 +971,8 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   )
 }

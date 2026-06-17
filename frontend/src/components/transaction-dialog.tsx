@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { transactions as transactionsApi, settings as settingsApi, payees as payeesApi, costCenters as costCentersApi } from '@/lib/api'
+import { transactions as transactionsApi, settings as settingsApi, payees as payeesApi, costCenters as costCentersApi, invoicesApi } from '@/lib/api'
+import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -311,7 +312,14 @@ function TransactionForm({
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState<'monthly' | 'weekly' | 'yearly'>('monthly')
   const [endDate, setEndDate] = useState('')
+  const [isPayingInvoice, setIsPayingInvoice] = useState(!!seed?.invoice_id)
+  const [invoiceId, setInvoiceId] = useState(seed?.invoice_id ?? '')
   const isCreating = !transaction
+  const { data: invoicesList } = useQuery({
+    queryKey: ['invoices'],
+    queryFn: () => invoicesApi.getInvoices(),
+    enabled: isPayingInvoice || !!seed?.invoice_id
+  })
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [pendingDragOver, setPendingDragOver] = useState(false)
   const pendingFileInputRef = useRef<HTMLInputElement>(null)
@@ -393,6 +401,7 @@ function TransactionForm({
               cost_center_id: costCenterId || null,
               payee_id: payeeId || null,
               account_id: accountId || undefined,
+              invoice_id: (type === 'debit' && isPayingInvoice && invoiceId) ? invoiceId : null,
               notes: notes.trim() || null,
             } as Partial<Transaction>
         const recurringData = isCreating && isRecurring
@@ -553,6 +562,46 @@ function TransactionForm({
           </div>
         )}
       </div>
+
+      {type === 'debit' && !isSynced && (
+        <div className="space-y-3 border rounded-md p-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isPayingInvoice}
+              onChange={(e) => {
+                setIsPayingInvoice(e.target.checked)
+                if (!e.target.checked) setInvoiceId('')
+              }}
+              className="rounded border-gray-300"
+            />
+            <span className="text-sm font-medium">É um pagamento de fatura?</span>
+          </label>
+          {isPayingInvoice && (
+            <div className="pt-1">
+              <Label>Fatura do Cartão</Label>
+              <select
+                className="w-full mt-1 border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+                value={invoiceId}
+                onChange={(e) => setInvoiceId(e.target.value)}
+                required
+              >
+                <option value="">Selecione uma fatura</option>
+                {(invoicesList ?? []).map((inv) => (
+                  <option key={inv.id} value={inv.id}>
+                    {(() => {
+                      const [year, month] = inv.month_reference.split('-')
+                      const account = accounts.find(a => a.id === inv.account_id)
+                      const accountName = account ? account.name : 'Cartão'
+                      return `${accountName} - ${format(new Date(parseInt(year), parseInt(month) - 1), 'MM/yyyy')} (${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(inv.total_amount)})`
+                    })()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <Label>{t('transactions.notes')} <span className="text-muted-foreground font-normal text-xs">({t('transactions.notesHint')})</span></Label>

@@ -643,6 +643,7 @@ async def import_transactions_streamed(
     source: str,
     filename: str = "",
     detected_format: str = "",
+    ignore_duplicates: bool = False,
 ):
     """Import transactions with progress updates.
 
@@ -710,24 +711,28 @@ async def import_transactions_streamed(
         txn_currency = txn_data.currency or account_currency
 
         # Duplicate detection
-        if txn_data.external_id:
-            existing = await session.execute(
-                select(Transaction.id).where(
-                    Transaction.account_id == account_id,
-                    Transaction.external_id == txn_data.external_id,
-                ).limit(1)
-            )
-        else:
-            existing = await session.execute(
-                select(Transaction.id).where(
-                    Transaction.account_id == account_id,
-                    Transaction.date == txn_data.date,
-                    Transaction.amount == txn_data.amount,
-                    Transaction.type == txn_data.type,
-                    Transaction.description == txn_data.description,
-                ).limit(1)
-            )
-        if existing.scalars().first():
+        existing = None
+        if not ignore_duplicates:
+            if txn_data.external_id:
+                existing_result = await session.execute(
+                    select(Transaction.id).where(
+                        Transaction.account_id == account_id,
+                        Transaction.external_id == txn_data.external_id,
+                    ).limit(1)
+                )
+            else:
+                existing_result = await session.execute(
+                    select(Transaction.id).where(
+                        Transaction.account_id == account_id,
+                        Transaction.date == txn_data.date,
+                        Transaction.amount == txn_data.amount,
+                        Transaction.type == txn_data.type,
+                        Transaction.description == txn_data.description,
+                    ).limit(1)
+                )
+            existing = existing_result.scalars().first()
+            
+        if existing:
             skipped += 1
             if (idx + 1) % report_interval == 0 or idx == total - 1:
                 yield {"phase": "importing", "current": idx + 1, "total": total, "imported": imported, "skipped": skipped}
@@ -784,6 +789,45 @@ async def import_transactions_streamed(
     yield {"phase": "finalizing", "current": total, "total": total, "imported": imported, "skipped": skipped}
 
     import_log.transaction_count = imported
+    
+    # Auto-generate credit card invoice if applicable
+    if account and account.type == "credit_card" and imported > 0:
+        from collections import Counter
+        from app.models.credit_card_invoice import CreditCardInvoice
+        
+        # Get imported transactions
+        imported_txs_result = await session.execute(
+            select(Transaction).where(Transaction.import_id == import_log.id)
+        )
+        imported_txs = imported_txs_result.scalars().all()
+        
+        if imported_txs:
+            month_counter = Counter(tx.date.strftime("%Y-%m") for tx in imported_txs)
+            month_reference = month_counter.most_common(1)[0][0]
+            
+            total_amount = sum((tx.amount if tx.type == "debit" else -tx.amount) for tx in imported_txs)
+            
+            existing_invoice = await session.execute(
+                select(CreditCardInvoice).where(
+                    CreditCardInvoice.account_id == account_id,
+                    CreditCardInvoice.month_reference == month_reference
+                )
+            )
+            invoice = existing_invoice.scalars().first()
+            if not invoice:
+                invoice = CreditCardInvoice(
+                    company_id=company_id,
+                    account_id=account_id,
+                    month_reference=month_reference,
+                    total_amount=total_amount,
+                    transaction_count=imported,
+                    status="OPEN"
+                )
+                session.add(invoice)
+            else:
+                invoice.total_amount += total_amount
+                invoice.transaction_count += imported
+
     await session.commit()
 
     # Phase: done

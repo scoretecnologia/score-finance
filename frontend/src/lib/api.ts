@@ -31,7 +31,9 @@ import type {
   BalanceHistory,
   PaginatedResponse,
   ReportResponse,
+  TransactionAttachment,
   CostCenter,
+  CreditCardInvoice,
 } from '@/types'
 
 const api = axios.create({
@@ -418,6 +420,7 @@ export const transactions = {
     filename: string,
     detected_format: string,
     onProgress: (data: { phase: string; current: number; total: number; imported: number; skipped: number; import_log_id?: string; message?: string }) => void,
+    ignore_duplicates: boolean = true,
   ): { promise: Promise<void>; abort: () => void } => {
     const controller = new AbortController()
     const token = localStorage.getItem('token')
@@ -433,7 +436,7 @@ export const transactions = {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ account_id, transactions, filename, detected_format }),
+        body: JSON.stringify({ account_id, transactions, filename, detected_format, ignore_duplicates }),
         signal: controller.signal,
       })
 
@@ -940,6 +943,17 @@ export const companies = {
   },
   acceptInvite: async (companyId: string): Promise<import('@/types').CompanyMember> => {
     const { data } = await api.post('/companies/invites/accept', null, { params: { company_id: companyId } })
+    return data
+  },
+}
+
+export const invoicesApi = {
+  getInvoices: async (params?: { account_id?: string; status?: string }): Promise<CreditCardInvoice[]> => {
+    const { data } = await api.get('/invoices', { params })
+    return data
+  },
+  getInvoiceTransactions: async (invoiceId: string): Promise<Transaction[]> => {
+    const { data } = await api.get(`/invoices/${invoiceId}/transactions`)
     return data
   },
 }

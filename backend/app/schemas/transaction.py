@@ -118,6 +118,7 @@ class TransactionImportRequest(BaseModel):
     transactions: list[TransactionBase]
     filename: str = ""
     detected_format: str = ""
+    ignore_duplicates: bool = False
 
 
 class ExtractHeadersResponse(BaseModel):

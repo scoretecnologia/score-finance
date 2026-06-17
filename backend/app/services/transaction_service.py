@@ -251,7 +251,6 @@ async def create_transaction(
     # Apply rules only if no explicit category/chart account provided
     if not data.category_id and not data.chart_account_id:
         await apply_rules_to_transaction(session, company_id, transaction)
-
     # Stamp primary currency amount (manual override or auto)
     if data.amount_primary is not None or data.fx_rate_used is not None:
         _apply_fx_override(transaction, data.amount, data.amount_primary, data.fx_rate_used)
@@ -260,6 +259,12 @@ async def create_transaction(
 
     await session.commit()
     await session.refresh(transaction, ["category"])
+
+    if transaction.invoice_id:
+        from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
+        await recalculate_invoice_paid_amount(session, transaction.invoice_id)
+        await session.commit()
+
     return transaction
 
 
@@ -556,6 +561,8 @@ async def update_transaction(
     restamp_fields = {"amount", "currency", "date"}
     needs_restamp = bool(restamp_fields & update_data.keys())
 
+    old_invoice_id = transaction.invoice_id
+
     for key, value in update_data.items():
         setattr(transaction, key, value)
 
@@ -603,6 +610,16 @@ async def update_transaction(
                 apply_effective_date(paired_tx, paired_account)
 
     await session.commit()
+
+    # Recalculate invoice if needed
+    if "invoice_id" in update_data or "amount" in update_data or "type" in update_data:
+        from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
+        if old_invoice_id:
+            await recalculate_invoice_paid_amount(session, old_invoice_id)
+        if transaction.invoice_id and transaction.invoice_id != old_invoice_id:
+            await recalculate_invoice_paid_amount(session, transaction.invoice_id)
+        await session.commit()
+
     await session.refresh(transaction)
     return transaction
 
@@ -664,6 +681,15 @@ async def delete_transaction(
 
     if paired_tx:
         await session.delete(paired_tx)
+
+    invoice_id = transaction.invoice_id
+
     await session.delete(transaction)
     await session.commit()
+
+    if invoice_id:
+        from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
+        await recalculate_invoice_paid_amount(session, invoice_id)
+        await session.commit()
+
     return True

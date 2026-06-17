@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.chart_account import ChartAccount
     from app.models.company import Company
     from app.models.cost_center import CostCenter
+    from app.models.credit_card_invoice import CreditCardInvoice
     from app.models.import_log import ImportLog
     from app.models.payee import Payee
     from app.models.transaction_attachment import TransactionAttachment
@@ -50,6 +51,7 @@ class Transaction(Base):
     transfer_pair_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), nullable=True)
     amount_primary: Mapped[Optional[Decimal]] = mapped_column(Numeric(precision=15, scale=2), nullable=True)
     fx_rate_used: Mapped[Optional[Decimal]] = mapped_column(Numeric(precision=20, scale=10), nullable=True)
+    invoice_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("credit_card_invoices.id", ondelete="SET NULL"), nullable=True)
     # Installment (parcelamento) metadata. Populated from provider data when available.
     # `installment_number` is 1-indexed (e.g. 3 for "3/12"). Storing alongside the
     # raw tx row so the door stays open to a plan view or manual entry later
@@ -67,6 +69,7 @@ class Transaction(Base):
     category: Mapped[Optional["Category"]] = relationship()
     chart_account: Mapped[Optional["ChartAccount"]] = relationship()
     cost_center: Mapped[Optional["CostCenter"]] = relationship(back_populates="transactions")
+    invoice: Mapped[Optional["CreditCardInvoice"]] = relationship(back_populates="transactions")
     payee_entity: Mapped[Optional["Payee"]] = relationship(back_populates="transactions")
     import_log: Mapped[Optional["ImportLog"]] = relationship(back_populates="transactions")
     attachments: Mapped[list["TransactionAttachment"]] = relationship(

@@ -195,6 +195,7 @@ async def import_transactions_stream(
             async for progress in import_service.import_transactions_streamed(
                 session, company.id, data.account_id, data.transactions, "import",
                 filename=data.filename, detected_format=data.detected_format,
+                ignore_duplicates=data.ignore_duplicates,
             ):
                 yield f"data: {json.dumps(progress)}\n\n"
         except Exception as e:

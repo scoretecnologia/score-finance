@@ -139,6 +139,7 @@ export interface Transaction {
   chart_account_id: string | null
   chart_account: ChartAccount | null
   cost_center_id: string | null
+  invoice_id: string | null
   external_id: string | null
   description: string
   amount: number
@@ -361,6 +362,19 @@ export interface AssetValue {
   amount: number
   date: string
   source: string
+}
+
+export interface CreditCardInvoice {
+  id: string;
+  account_id: string;
+  month_reference: string;
+  total_amount: number;
+  paid_amount: number;
+  transaction_count: number;
+  status: 'OPEN' | 'PARTIALLY_PAID' | 'PAID';
+  account?: Account;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface Goal {

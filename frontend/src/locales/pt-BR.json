@@ -40,8 +40,9 @@
   "nav": {
     "dashboard": "Painel",
     "transactions": "Lançamentos",
-    "creditCards": "Cartões de Crédito",
-    "importCreditCards": "Importar Fatura",
+    "creditCards": "Lançamentos fatura",
+    "creditCardInvoices": "Faturas consolidadas",
+    "importCreditCards": "Importar fatura",
     "accounts": "Contas",
     "import": "Importar",
     "rules": "Regras",
@@ -57,6 +58,7 @@
     "groupAnalysis": "Análise",
     "groupSetup": "Configuração",
     "groupAccounts": "Contas",
+    "groupCreditCards": "Cartões de Crédito",
     "groupAdmin": "Administração",
     "companyMembers": "Usuários e Acessos"
   },

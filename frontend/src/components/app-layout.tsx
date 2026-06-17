@@ -58,6 +58,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   CreditCard,
+  FileText,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
@@ -74,9 +75,11 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'transactions', path: '/transactions', icon: ArrowLeftRight },
   { type: 'separator', labelKey: 'nav.groupAccounts' },
   { type: 'link', key: 'accounts',     path: '/accounts',     icon: Building2 },
+  { type: 'link', key: 'import',       path: '/import',       icon: Upload },
+  { type: 'separator', labelKey: 'nav.groupCreditCards' },
+  { type: 'link', key: 'creditCardInvoices', path: '/credit-cards/invoices', icon: FileText },
   { type: 'link', key: 'creditCards',  path: '/credit-cards', icon: CreditCard, exactMatch: true },
   { type: 'link', key: 'importCreditCards', path: '/credit-cards/import', icon: Upload },
-  { type: 'link', key: 'import',       path: '/import',       icon: Upload },
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
   { type: 'link', key: 'reports',      path: '/reports',      icon: BarChart3 },
   { type: 'link', key: 'assets',       path: '/assets',       icon: Landmark },

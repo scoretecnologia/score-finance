@@ -88,9 +88,24 @@ async def delete_import_log(
             )
         )
 
+    # Collect invoice IDs affected
+    inv_result = await session.execute(
+        select(Transaction.invoice_id).where(
+            Transaction.import_id == log_id,
+            Transaction.invoice_id.isnot(None)
+        ).distinct()
+    )
+    invoice_ids = [row[0] for row in inv_result.all()]
+
     # Delete all transactions from this import
     await session.execute(
         delete(Transaction).where(Transaction.import_id == log_id)
     )
+    
+    # Recalculate affected invoices
+    from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
+    for inv_id in invoice_ids:
+        await recalculate_invoice_paid_amount(session, inv_id)
+        
     await session.delete(log)
     await session.commit()
