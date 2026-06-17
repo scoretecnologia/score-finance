@@ -89,7 +89,8 @@ async def get_transactions(
             selectinload(Transaction.category).selectinload(Category.chart_accounts),
             selectinload(Transaction.chart_account),
             selectinload(Transaction.account),
-            selectinload(Transaction.payee_entity)
+            selectinload(Transaction.payee_entity),
+            selectinload(Transaction.cost_center)
         )
     )
 
@@ -186,7 +187,8 @@ async def get_transaction(
             selectinload(Transaction.category).selectinload(Category.chart_accounts),
             selectinload(Transaction.chart_account),
             selectinload(Transaction.account),
-            selectinload(Transaction.payee_entity)
+            selectinload(Transaction.payee_entity),
+            selectinload(Transaction.cost_center)
         )
     )
     transaction = result.scalar_one_or_none()
@@ -401,6 +403,7 @@ async def get_transfer_candidates(
             selectinload(Transaction.chart_account),
             selectinload(Transaction.account),
             selectinload(Transaction.payee_entity),
+            selectinload(Transaction.cost_center),
         )
     )
     candidates = list(result.scalars().all())

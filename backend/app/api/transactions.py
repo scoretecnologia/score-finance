@@ -278,8 +278,9 @@ async def update_transaction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     if not transaction:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+    full_tx = await transaction_service.get_transaction(session, transaction.id, company.id)
     primary_currency = user.primary_currency
-    return _tag_fx_fallback(TransactionRead.model_validate(transaction, from_attributes=True), primary_currency)
+    return _tag_fx_fallback(TransactionRead.model_validate(full_tx, from_attributes=True), primary_currency)
 
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
