@@ -31,7 +31,6 @@ import type {
   BalanceHistory,
   PaginatedResponse,
   ReportResponse,
-  TransactionAttachment,
   CostCenter,
   CreditCardInvoice,
 } from '@/types'
