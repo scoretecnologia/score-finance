@@ -57,6 +57,7 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
+  CreditCard,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
@@ -65,7 +66,7 @@ import { CommandPalette } from '@/components/command-palette'
 import { useCommandPaletteHotkey } from '@/hooks/use-command-palette-hotkey'
 
 type NavItem =
-  | { type: 'link'; key: string; path: string; icon: React.ElementType; requiredRole?: string[] }
+  | { type: 'link'; key: string; path: string; icon: React.ElementType; requiredRole?: string[]; exactMatch?: boolean }
   | { type: 'separator'; labelKey: string; requiredRole?: string[] }
 
 const navItems: NavItem[] = [
@@ -73,6 +74,8 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'transactions', path: '/transactions', icon: ArrowLeftRight },
   { type: 'separator', labelKey: 'nav.groupAccounts' },
   { type: 'link', key: 'accounts',     path: '/accounts',     icon: Building2 },
+  { type: 'link', key: 'creditCards',  path: '/credit-cards', icon: CreditCard, exactMatch: true },
+  { type: 'link', key: 'importCreditCards', path: '/credit-cards/import', icon: Upload },
   { type: 'link', key: 'import',       path: '/import',       icon: Upload },
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
   { type: 'link', key: 'reports',      path: '/reports',      icon: BarChart3 },
@@ -354,7 +357,9 @@ export function AppLayout() {
                 )
               }
 
-              const isActive = item.path === '/'
+              const isActive = item.exactMatch
+                ? location.pathname === item.path
+                : item.path === '/'
                 ? location.pathname === '/'
                 : location.pathname.startsWith(item.path)
               const Icon = item.icon

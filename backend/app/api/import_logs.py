@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
+from typing import Optional
+from fastapi import Query
 
 from app.core.auth import current_active_user
 from app.core.tenant import get_current_company
@@ -20,13 +22,20 @@ async def list_import_logs(
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
+    account_type: Optional[str] = Query(None),
 ):
-    result = await session.execute(
+    stmt = (
         select(ImportLog)
         .options(joinedload(ImportLog.account))
         .where(ImportLog.company_id == company.id)
         .order_by(ImportLog.created_at.desc())
     )
+    
+    if account_type:
+        from app.models.account import Account
+        stmt = stmt.join(Account).where(Account.type == account_type)
+        
+    result = await session.execute(stmt)
     logs = result.scalars().unique().all()
     return [
         ImportLogRead(

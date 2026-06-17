@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { transactions as transactionsApi, accounts as accountsApi, importLogs as importLogsApi } from '@/lib/api'
+import { transactions as transactionsApi, accounts as accountsApi, importLogs as importLogsApi, settings as settingsApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Transaction, ImportLog } from '@/types'
-import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Download, Loader2 } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Download, Loader2, Settings } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
 import { useAuth } from '@/contexts/auth-context'
@@ -41,7 +41,7 @@ const MAPPING_FIELDS = [
   { key: 'chart_account_code', label: 'Plano de Contas (Código)', required: false },
 ]
 
-export default function ImportPage() {
+export default function ImportPage({ accountType }: { accountType?: string }) {
   const { t, i18n } = useTranslation()
   const { user } = useAuth()
   const userCurrency = user?.preferences?.currency_display ?? 'BRL'
@@ -55,6 +55,9 @@ export default function ImportPage() {
   const [currentFile, setCurrentFile] = useState<File | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<ImportLog | null>(null)
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [geminiKey, setGeminiKey] = useState('')
+  const [unselectedIndexes, setUnselectedIndexes] = useState<Set<number>>(new Set())
 
   // Mapping options
   const [mappingMode, setMappingMode] = useState(false)
@@ -76,11 +79,12 @@ export default function ImportPage() {
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list(),
+    select: (data) => accountType ? data.filter(a => a.type === accountType) : data
   })
 
   const { data: importHistory = [] } = useQuery({
-    queryKey: ['import-logs'],
-    queryFn: importLogsApi.list,
+    queryKey: ['import-logs', accountType],
+    queryFn: () => importLogsApi.list(accountType ? { account_type: accountType } : undefined),
   })
 
   const { data: duplicateFlags, isFetching: isCheckingDuplicates } = useQuery({
@@ -89,11 +93,30 @@ export default function ImportPage() {
     enabled: !!selectedAccount && !!previewData?.transactions?.length,
   })
 
+  const { data: aiSettings, isLoading: isLoadingAiSettings } = useQuery({
+    queryKey: ['settings', 'ai'],
+    queryFn: () => settingsApi.getAIConfig(),
+    enabled: isSettingsOpen && accountType === 'credit_card',
+  })
+
+  const saveAiSettingsMutation = useMutation({
+    mutationFn: (value: string) => settingsApi.updateAIConfig(value),
+    onSuccess: () => {
+      toast.success('Configurações de IA salvas com sucesso')
+      setIsSettingsOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['settings', 'ai'] })
+    },
+    onError: () => {
+      toast.error('Erro ao salvar as configurações de IA')
+    }
+  })
+
   const previewMutation = useMutation({
     mutationFn: ({ file, options }: { file: File; options?: { date_format?: string; flip_amount?: boolean; column_mapping?: Record<string, string> } }) =>
       transactionsApi.previewImport(file, options),
     onSuccess: (data) => {
       setPreviewData(data)
+      setUnselectedIndexes(new Set())
     },
     onError: (error: unknown) => {
       const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
@@ -112,6 +135,38 @@ export default function ImportPage() {
       toast.error(detail || "Erro ao ler as colunas da planilha")
     },
   })
+
+  const parsePdfMutation = useMutation({
+    mutationFn: (file: File) => transactionsApi.parsePdf(file),
+    onSuccess: (data: any[]) => {
+      const formattedTransactions = data.map((t) => {
+        const amt = Number(t.amount) || 0;
+        return {
+          ...t,
+          amount: Math.abs(amt),
+          type: amt < 0 ? 'debit' : 'credit',
+          import_error: null,
+          category_id: null,
+          chart_account_id: null,
+        }
+      });
+      setPreviewData({ transactions: formattedTransactions as Transaction[], detected_format: 'pdf' })
+      setUnselectedIndexes(new Set())
+      setCsvHeaders(['date', 'description', 'amount'])
+      setColumnMapping({
+        date: 'date',
+        description: 'description',
+        amount: 'amount'
+      })
+      setMappingMode(true)
+    },
+    onError: (error: unknown) => {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || "Erro ao processar o PDF com a IA")
+      setFileName(null)
+      setCurrentFile(null)
+    },
+  })
   const resetMappingOptions = useCallback(() => {
     setCsvDateFormat('')
     setCsvFlipAmount(false)
@@ -122,11 +177,14 @@ export default function ImportPage() {
 
   const startStreamingImport = useCallback(() => {
     if (!previewData || !selectedAccount) return
-    setImportProgress({ active: true, phase: 'preparing', current: 0, total: previewData.transactions.length, imported: 0, skipped: 0 })
+    const transactionsToImport = previewData.transactions.filter((_, i) => !unselectedIndexes.has(i))
+    if (transactionsToImport.length === 0) return
+    
+    setImportProgress({ active: true, phase: 'preparing', current: 0, total: transactionsToImport.length, imported: 0, skipped: 0 })
 
     const { promise, abort } = transactionsApi.importStream(
       selectedAccount,
-      previewData.transactions,
+      transactionsToImport,
       fileName ?? '',
       previewData.detected_format,
       (data) => {
@@ -201,7 +259,9 @@ export default function ImportPage() {
     resetMappingOptions()
 
     const lowerName = file.name.toLowerCase()
-    if (lowerName.endsWith('.csv') || lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) {
+    if (lowerName.endsWith('.pdf') && accountType === 'credit_card') {
+      parsePdfMutation.mutate(file)
+    } else if (lowerName.endsWith('.csv') || lowerName.endsWith('.xls') || lowerName.endsWith('.xlsx')) {
       extractHeadersMutation.mutate(file)
     } else {
       previewMutation.mutate({ file })
@@ -210,6 +270,8 @@ export default function ImportPage() {
 
   const handlePreviewWithMapping = useCallback(() => {
     if (!currentFile) return
+    if (currentFile.name.toLowerCase().endsWith('.pdf')) return
+    
     const options: { date_format?: string; flip_amount?: boolean; column_mapping?: Record<string, string> } = {}
     if (csvDateFormat) options.date_format = csvDateFormat
     if (csvFlipAmount) options.flip_amount = true
@@ -255,23 +317,43 @@ export default function ImportPage() {
     setFileName(null)
     setCurrentFile(null)
     setSelectedAccount('')
+    setUnselectedIndexes(new Set())
     resetMappingOptions()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   const transactions = previewData?.transactions || []
-  const totalCount = transactions.length
-  const incomeCount = transactions.filter(t => t.type === 'credit' && !t.import_error).length
-  const expenseCount = transactions.filter(t => t.type === 'debit' && !t.import_error).length
-  const incomeSum = transactions.filter(t => t.type === 'credit' && !t.import_error).reduce((acc, t) => acc + Number(t.amount || 0), 0)
-  const expenseSum = transactions.filter(t => t.type === 'debit' && !t.import_error).reduce((acc, t) => acc + Number(t.amount || 0), 0)
-  const errorCount = transactions.filter(t => !!t.import_error).length
+  const selectedTransactions = transactions.filter((_, i) => !unselectedIndexes.has(i))
+  const totalCount = selectedTransactions.length
+  const incomeCount = selectedTransactions.filter(t => t.type === 'credit' && !t.import_error).length
+  const expenseCount = selectedTransactions.filter(t => t.type === 'debit' && !t.import_error).length
+  const incomeSum = selectedTransactions.filter(t => t.type === 'credit' && !t.import_error).reduce((acc, t) => acc + Number(t.amount || 0), 0)
+  const expenseSum = selectedTransactions.filter(t => t.type === 'debit' && !t.import_error).reduce((acc, t) => acc + Number(t.amount || 0), 0)
+  const errorCount = selectedTransactions.filter(t => !!t.import_error).length
   const hasErrors = errorCount > 0
+  const invoiceBalance = expenseSum - incomeSum // Positive means you owe money (standard for credit card)
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <PageHeader section={t('import.title')} title={t('import.subtitle')} />
+      {/* Page header */}
+      <div className="flex justify-between items-center">
+        <PageHeader 
+          section={accountType === 'credit_card' ? t('nav.creditCards') : t('import.title')} 
+          title={accountType === 'credit_card' ? t('nav.importCreditCards') : t('import.subtitle')} 
+        />
+        {accountType === 'credit_card' && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+          >
+            <Settings size={16} />
+            <span>Configurações da IA</span>
+          </Button>
+        )}
+      </div>
 
       {/* Upload zone */}
       <div
@@ -286,18 +368,20 @@ export default function ImportPage() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".ofx,.qfx,.csv,.qif,.xml,.camt,.xls,.xlsx"
+          accept={accountType === 'credit_card' ? ".ofx,.qfx,.xlsx,.pdf" : ".ofx,.qfx,.csv,.qif,.xml,.camt,.xls,.xlsx"}
           onChange={handleFileChange}
           className="hidden"
         />
 
         <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-          {previewMutation.isPending || extractHeadersMutation.isPending ? (
+          {previewMutation.isPending || extractHeadersMutation.isPending || parsePdfMutation.isPending ? (
             <>
               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4 animate-pulse">
                 <FileText size={22} className="text-primary" />
               </div>
-              <p className="text-sm font-semibold text-foreground">{t('import.processing')}</p>
+              <p className="text-sm font-semibold text-foreground">
+                {parsePdfMutation.isPending ? "Analisando fatura com Inteligência Artificial..." : t('import.processing')}
+              </p>
               <p className="text-xs text-muted-foreground mt-1">{fileName}</p>
             </>
           ) : fileName && (mappingMode || previewData) ? (
@@ -324,24 +408,30 @@ export default function ImportPage() {
               <p className="text-sm font-semibold text-foreground mb-1">
                 {t('import.dragOrClick')}
               </p>
-              <p className="text-xs text-muted-foreground">{t('import.acceptedFormats')}</p>
-              <button
-                className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const csv = 'date,description,amount,currency,fx_rate\n2026-01-15,Grocery Store,-120.50,USD,\n2026-01-20,Salary Payment,5000.00,EUR,1.08\n'
-                  const blob = new Blob([csv], { type: 'text/csv' })
-                  const url = URL.createObjectURL(blob)
-                  const a = document.createElement('a')
-                  a.href = url
-                  a.download = 'template.csv'
-                  a.click()
-                  URL.revokeObjectURL(url)
-                }}
-              >
-                <Download size={12} />
-                {t('import.downloadTemplate')}
-              </button>
+              <p className="text-xs text-muted-foreground">
+                {accountType === 'credit_card' 
+                  ? t('import.acceptedFormatsCreditCard', 'Formatos aceitos: OFX, XLSX') 
+                  : t('import.acceptedFormats')}
+              </p>
+              {accountType !== 'credit_card' && (
+                <button
+                  className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    const csv = 'date,description,amount,currency,fx_rate\n2026-01-15,Grocery Store,-120.50,USD,\n2026-01-20,Salary Payment,5000.00,EUR,1.08\n'
+                    const blob = new Blob([csv], { type: 'text/csv' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'template.csv'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  }}
+                >
+                  <Download size={12} />
+                  {t('import.downloadTemplate')}
+                </button>
+              )}
             </>
           )}
         </div>
@@ -433,14 +523,26 @@ export default function ImportPage() {
             </div>
             <span className="text-xs text-muted-foreground mt-1">{expenseCount} lançamentos</span>
           </div>
-          <div className={`bg-card rounded-xl border p-4 shadow-sm flex flex-col ${hasErrors ? 'border-amber-500 bg-amber-50/50' : 'border-border'}`}>
-            <span className={`text-xs font-medium uppercase tracking-wider mb-1 ${hasErrors ? 'text-amber-700' : 'text-muted-foreground'}`}>Erros encontrados</span>
-            <div className="flex items-center gap-2">
-              <span className={`text-2xl font-bold ${hasErrors ? 'text-amber-600' : 'text-emerald-600'}`}>{errorCount}</span>
+          {accountType === 'credit_card' ? (
+            <div className="bg-card rounded-xl border border-border p-4 shadow-sm flex flex-col">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Saldo da Fatura</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-2xl font-bold ${invoiceBalance > 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                  {formatCurrency(Math.abs(invoiceBalance))}
+                </span>
+              </div>
+              <span className="text-xs text-muted-foreground mt-1">Despesas - Receitas</span>
             </div>
-            {hasErrors && <span className="text-xs text-amber-700 mt-1">Impedem a importação</span>}
-            {!hasErrors && errorCount === 0 && totalCount > 0 && <span className="text-xs text-emerald-600 mt-1">Tudo certo!</span>}
-          </div>
+          ) : (
+            <div className={`bg-card rounded-xl border p-4 shadow-sm flex flex-col ${hasErrors ? 'border-amber-500 bg-amber-50/50' : 'border-border'}`}>
+              <span className={`text-xs font-medium uppercase tracking-wider mb-1 ${hasErrors ? 'text-amber-700' : 'text-muted-foreground'}`}>Erros encontrados</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-2xl font-bold ${hasErrors ? 'text-amber-600' : 'text-emerald-600'}`}>{errorCount}</span>
+              </div>
+              {hasErrors && <span className="text-xs text-amber-700 mt-1">Impedem a importação</span>}
+              {!hasErrors && errorCount === 0 && totalCount > 0 && <span className="text-xs text-emerald-600 mt-1">Tudo certo!</span>}
+            </div>
+          )}
         </div>
       )}
 
@@ -496,7 +598,26 @@ export default function ImportPage() {
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent bg-transparent border-b border-border">
-                  <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-5 w-[110px]">
+                  <TableHead className="w-10 pl-5">
+                    <input
+                      type="checkbox"
+                      checked={unselectedIndexes.size === 0 && transactions.length > 0}
+                      ref={(input) => {
+                        if (input) {
+                          input.indeterminate = unselectedIndexes.size > 0 && unselectedIndexes.size < transactions.length
+                        }
+                      }}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setUnselectedIndexes(new Set())
+                        } else {
+                          setUnselectedIndexes(new Set(transactions.map((_, i) => i)))
+                        }
+                      }}
+                      className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                  </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground py-3 w-[110px]">
                     {t('transactions.date')}
                   </TableHead>
                   <TableHead className="text-xs font-medium text-muted-foreground py-3">
@@ -510,12 +631,28 @@ export default function ImportPage() {
               <TableBody>
                 {previewData.transactions.slice(0, 50).map((tx, i) => {
                   const isDuplicate = duplicateFlags?.[i] ?? false;
+                  const isSelected = !unselectedIndexes.has(i);
                   return (
-                    <TableRow key={i} className={`border-b border-border last:border-0 hover:bg-muted ${isDuplicate ? 'opacity-50 bg-muted/30' : ''} ${tx.import_error ? 'bg-amber-50/50' : ''}`}>
-                      <TableCell className="py-3 pl-5 text-xs text-muted-foreground whitespace-nowrap">
+                    <TableRow key={i} className={`border-b border-border last:border-0 hover:bg-muted ${!isSelected ? 'opacity-40' : ''} ${isDuplicate ? 'bg-muted/30' : ''} ${tx.import_error ? 'bg-amber-50/50' : ''}`}>
+                      <TableCell className="pl-5 w-10">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            setUnselectedIndexes(prev => {
+                              const next = new Set(prev)
+                              if (e.target.checked) next.delete(i)
+                              else next.add(i)
+                              return next
+                            })
+                          }}
+                          className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                        />
+                      </TableCell>
+                      <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
                         {new Date(tx.date).toLocaleDateString(locale)}
                       </TableCell>
-                      <TableCell className="py-3 text-sm text-foreground">
+                      <TableCell className={`py-3 text-sm ${!isSelected ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                         <div className="flex items-center gap-2">
                           {tx.import_error && <AlertCircle size={14} className="text-amber-500 shrink-0" />}
                           <span className={tx.import_error ? 'text-amber-900 font-medium' : ''}>{tx.description}</span>
@@ -730,6 +867,47 @@ export default function ImportPage() {
             >
               {deleteMutation.isPending ? t('import.deleting') : t('import.deleteAll')}
             </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* AI Settings dialog */}
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configurações da Inteligência Artificial</DialogTitle>
+            <DialogDescription>
+              Insira sua chave de API do Google Gemini para permitir a extração automática de faturas de cartão de crédito em PDF.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="gemini_key">Chave da API (Gemini)</Label>
+              <input
+                id="gemini_key"
+                type="password"
+                placeholder={isLoadingAiSettings ? "Carregando..." : aiSettings?.value ? "••••••••••••••••••••••••" : "Insira sua API Key"}
+                className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Sua chave será armazenada de forma segura e usada apenas para ler suas faturas.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsSettingsOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => saveAiSettingsMutation.mutate(geminiKey)}
+              disabled={!geminiKey || saveAiSettingsMutation.isPending}
+            >
+              {saveAiSettingsMutation.isPending ? "Salvando..." : "Salvar Configurações"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

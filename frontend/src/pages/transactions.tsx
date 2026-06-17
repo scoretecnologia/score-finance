@@ -38,7 +38,7 @@ function parseHashtags(notes: string | null): string[] {
   return matches ?? []
 }
 
-export default function TransactionsPage() {
+export default function TransactionsPage({ accountType }: { accountType?: string }) {
   const { t, i18n } = useTranslation()
   const [searchParams] = useSearchParams()
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
@@ -123,7 +123,7 @@ export default function TransactionsPage() {
   }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery],
+    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery, accountType],
     queryFn: () =>
       transactions.list({
         page,
@@ -135,6 +135,7 @@ export default function TransactionsPage() {
         from: filterFrom || undefined,
         to: filterTo || undefined,
         q: searchQuery || undefined,
+        account_type: accountType,
       }),
   })
 
@@ -391,6 +392,7 @@ export default function TransactionsPage() {
                     from: filterFrom || undefined,
                     to: filterTo || undefined,
                     q: searchQuery || undefined,
+                    account_type: accountType,
                   })
                   toast.success(t('transactions.exportSuccess'))
                 } catch {

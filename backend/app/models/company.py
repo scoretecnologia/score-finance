@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.company_member import CompanyMember
+    from app.models.company_setting import CompanySetting
 
 
 class Company(Base):
@@ -31,5 +32,8 @@ class Company(Base):
     )
 
     members: Mapped[list["CompanyMember"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan"
+    )
+    settings: Mapped[list["CompanySetting"]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )

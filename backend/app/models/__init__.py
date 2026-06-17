@@ -19,6 +19,7 @@ from app.models.payee import Payee, PayeeMapping
 from app.models.app_settings import AppSetting
 from app.models.goal import Goal
 from app.models.cost_center import CostCenter
+from app.models.company_setting import CompanySetting
 
 __all__ = [
     "Company",
@@ -42,4 +43,6 @@ __all__ = [
     "PayeeMapping",
     "AppSetting",
     "Goal",
+    "CostCenter",
+    "CompanySetting",
 ]

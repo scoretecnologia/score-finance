@@ -40,6 +40,8 @@
   "nav": {
     "dashboard": "Dashboard",
     "transactions": "Transactions",
+    "creditCards": "Credit Cards",
+    "importCreditCards": "Import Invoice",
     "accounts": "Accounts",
     "import": "Import",
     "rules": "Rules",

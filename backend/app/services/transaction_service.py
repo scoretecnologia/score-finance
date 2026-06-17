@@ -67,6 +67,7 @@ async def get_transactions(
     chart_account_id: Optional[uuid.UUID] = None,
     chart_account_ids: Optional[list[uuid.UUID]] = None,
     accounting_mode: Optional[str] = None,
+    account_type: Optional[str] = None,
 ) -> tuple[list[Transaction], int]:
     # In "accrual" mode, bucket/order by effective_date so list filters
     # line up with the cash-flow view used by the dashboard and reports.
@@ -104,6 +105,10 @@ async def get_transactions(
         base_query = base_query.where(Transaction.account_id.in_(account_ids))
     elif account_id:
         base_query = base_query.where(Transaction.account_id == account_id)
+        
+    if account_type:
+        base_query = base_query.where(Account.type == account_type)
+        
     if category_ids:
         base_query = base_query.where(Transaction.category_id.in_(category_ids))
     elif category_id:

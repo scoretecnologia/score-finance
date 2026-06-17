@@ -62,6 +62,7 @@ async def list_transactions(
     q: Optional[str] = Query(None),
     uncategorized: bool = Query(False),
     type: Optional[str] = Query(None),
+    account_type: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
     include_opening_balance: bool = Query(False),
@@ -79,7 +80,7 @@ async def list_transactions(
         chart_account_ids=chart_account_ids,
         payee_id=payee_id, from_date=from_date, to_date=to_date, page=page, limit=limit,
         include_opening_balance=include_opening_balance, search=q, uncategorized=uncategorized,
-        txn_type=type, exclude_transfers=exclude_transfers,
+        txn_type=type, account_type=account_type, exclude_transfers=exclude_transfers,
         accounting_mode=accounting_mode,
     )
     primary_currency = user.primary_currency
@@ -102,6 +103,7 @@ async def export_transactions(
     q: Optional[str] = Query(None),
     uncategorized: bool = Query(False),
     type: Optional[str] = Query(None),
+    account_type: Optional[str] = Query(None),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
@@ -113,9 +115,9 @@ async def export_transactions(
         category_ids=_merge_id_filters(category_id, category_ids),
         chart_account_id=chart_account_id,
         chart_account_ids=chart_account_ids,
-        payee_id=payee_id, from_date=from_date, to_date=to_date,
-        search=q, uncategorized=uncategorized, txn_type=type, skip_pagination=True,
-        accounting_mode=accounting_mode,
+        payee_id=payee_id, from_date=from_date, to_date=to_date, search=q,
+        uncategorized=uncategorized, txn_type=type, account_type=account_type,
+        skip_pagination=True, accounting_mode=accounting_mode,
     )
 
     output = io.StringIO()

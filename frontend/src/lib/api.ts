@@ -316,6 +316,7 @@ export const transactions = {
     payee_id?: string
     uncategorized?: boolean
     type?: string
+    account_type?: string
     from?: string
     to?: string
     q?: string
@@ -401,6 +402,12 @@ export const transactions = {
     const { data } = await api.post('/transactions/import/extract-headers', formData)
     return data
   },
+  parsePdf: async (file: File): Promise<Transaction[]> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await api.post('/transactions/import/parse-pdf', formData)
+    return data
+  },
   import: async (account_id: string, transactions: Transaction[], filename: string, detected_format: string): Promise<{ imported: number; skipped: number; import_log_id: string }> => {
     const { data } = await api.post('/transactions/import', { account_id, transactions, filename, detected_format })
     return data
@@ -478,6 +485,7 @@ export const transactions = {
     chart_account_ids?: string[]
     uncategorized?: boolean
     type?: string
+    account_type?: string
     from?: string
     to?: string
     q?: string
@@ -781,8 +789,8 @@ export const fxRates = {
 
 // Import Logs
 export const importLogs = {
-  list: async (): Promise<ImportLog[]> => {
-    const { data } = await api.get('/import-logs')
+  list: async (params?: { account_type?: string }): Promise<ImportLog[]> => {
+    const { data } = await api.get('/import-logs', { params })
     return data
   },
   delete: async (id: string): Promise<void> => {
@@ -794,6 +802,14 @@ export const importLogs = {
 export const settings = {
   attachments: async (): Promise<{ allowed_extensions: string[]; max_file_size_mb: number; max_attachments_per_transaction: number }> => {
     const { data } = await api.get('/settings/attachments')
+    return data
+  },
+  getAIConfig: async (): Promise<{ value: string | null }> => {
+    const { data } = await api.get('/settings/ai')
+    return data
+  },
+  updateAIConfig: async (value: string): Promise<{ value: string }> => {
+    const { data } = await api.post('/settings/ai', { value, key: 'gemini_api_key' })
     return data
   },
 }

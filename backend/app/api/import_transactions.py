@@ -252,3 +252,40 @@ async def check_import_duplicates(
             results.append(False)
 
     return results
+
+
+@router.post("/import/parse-pdf")
+async def parse_pdf_invoice(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    from sqlalchemy import select
+    from app.models.company_setting import CompanySetting
+    from app.services.pdf_ai_service import parse_pdf_invoice_with_gemini
+    
+    # Get Gemini API key
+    result = await session.execute(
+        select(CompanySetting).where(
+            CompanySetting.company_id == company.id,
+            CompanySetting.key == "gemini_api_key"
+        )
+    )
+    setting = result.scalar_one_or_none()
+    
+    if not setting or not setting.value:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="Chave de API do Gemini não configurada. Por favor, configure-a nas configurações."
+        )
+        
+    try:
+        content = await file.read()
+        transactions = parse_pdf_invoice_with_gemini(content, setting.value)
+        return transactions
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to parse PDF invoice {file.filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Falha ao processar PDF com a IA.")

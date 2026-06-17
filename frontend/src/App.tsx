@@ -17,6 +17,8 @@ const TransactionsPage = lazy(() => import('@/pages/transactions'))
 const AccountsPage = lazy(() => import('@/pages/accounts'))
 const AccountDetailPage = lazy(() => import('@/pages/account-detail'))
 const ImportPage = lazy(() => import('@/pages/import'))
+const CreditCardsPage = lazy(() => import('@/pages/credit-cards/index'))
+const CreditCardsImportPage = lazy(() => import('@/pages/credit-cards/import'))
 const RulesPage = lazy(() => import('@/pages/rules'))
 const CategoriesPage = lazy(() => import('@/pages/categories'))
 const CostCentersPage = lazy(() => import('@/pages/cost-centers'))
@@ -96,6 +98,8 @@ function App() {
                     <Route path="/transactions" element={<TransactionsPage />} />
                     <Route path="/accounts" element={<AccountsPage />} />
                     <Route path="/accounts/:id" element={<AccountDetailPage />} />
+                    <Route path="/credit-cards" element={<CreditCardsPage />} />
+                    <Route path="/credit-cards/import" element={<CreditCardsImportPage />} />
                     <Route path="/import" element={<ImportPage />} />
                     <Route path="/rules" element={<RulesPage />} />
                     <Route path="/categories" element={<CategoriesPage />} />

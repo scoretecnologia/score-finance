@@ -40,6 +40,8 @@
   "nav": {
     "dashboard": "Painel",
     "transactions": "Lançamentos",
+    "creditCards": "Cartões de Crédito",
+    "importCreditCards": "Importar Fatura",
     "accounts": "Contas",
     "import": "Importar",
     "rules": "Regras",
