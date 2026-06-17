@@ -19,6 +19,8 @@ class TransactionBase(BaseModel):
     currency: Optional[str] = None
     fx_rate: Optional[Decimal] = None
     payee_raw: Optional[str] = None  # raw payee string from import (OFX/QIF)
+    chart_account_id: Optional[uuid.UUID] = None
+    import_error: Optional[str] = None
 
 
 class TransactionCreate(TransactionBase):
@@ -116,3 +118,7 @@ class TransactionImportRequest(BaseModel):
     transactions: list[TransactionBase]
     filename: str = ""
     detected_format: str = ""
+
+
+class ExtractHeadersResponse(BaseModel):
+    headers: list[str]

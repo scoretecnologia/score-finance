@@ -11,13 +11,29 @@ from app.core.tenant import get_current_company
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
-from app.schemas.transaction import TransactionImportPreview, TransactionImportRequest
+from app.schemas.transaction import TransactionImportPreview, TransactionImportRequest, ExtractHeadersResponse
 from app.services import import_service
 from app.services import account_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/transactions", tags=["import"])
+
+
+@router.post("/import/extract-headers", response_model=ExtractHeadersResponse)
+async def extract_headers(
+    file: UploadFile = File(...),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    content = await file.read()
+    filename = file.filename or ""
+    try:
+        headers = import_service.extract_headers(content, filename)
+        return ExtractHeadersResponse(headers=headers)
+    except Exception as e:
+        logger.error(f"Failed to extract headers from {filename}: {e}", exc_info=True)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to extract headers: {str(e)}")
 
 
 @router.post("/import/preview", response_model=TransactionImportPreview)
@@ -27,8 +43,10 @@ async def preview_import(
     flip_amount: bool = Form(False),
     inflow_column: Optional[str] = Form(None),
     outflow_column: Optional[str] = Form(None),
+    column_mapping: Optional[str] = Form(None),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_async_session),
 ):
     content = await file.read()
     filename = file.filename or ""
@@ -37,6 +55,27 @@ async def preview_import(
         "Import preview requested: filename=%s, size=%d bytes, content_type=%s",
         filename, len(content), file.content_type,
     )
+
+    mapping_dict = None
+    if column_mapping:
+        import json
+        try:
+            mapping_dict = json.loads(column_mapping)
+        except Exception:
+            pass
+
+    chart_account_map = {}
+    if mapping_dict and "chart_account_code" in mapping_dict.values():
+        from sqlalchemy import select
+        from app.models.chart_account import ChartAccount
+        stmt = select(ChartAccount.id, ChartAccount.code).where(
+            ChartAccount.company_id == company.id,
+            ChartAccount.code.isnot(None)
+        )
+        result = await db.execute(stmt)
+        for ca_id, ca_code in result.all():
+            if ca_code:
+                chart_account_map[str(ca_code).strip().lower()] = ca_id
 
     try:
         if filename.lower().endswith('.ofx') or filename.lower().endswith('.qfx'):
@@ -55,6 +94,8 @@ async def preview_import(
                 flip_amount=flip_amount,
                 inflow_column=inflow_column,
                 outflow_column=outflow_column,
+                column_mapping=mapping_dict,
+                chart_account_map=chart_account_map,
             )
             detected_format = "csv"
         elif filename.lower().endswith('.xls') or filename.lower().endswith('.xlsx'):
@@ -64,6 +105,8 @@ async def preview_import(
                 flip_amount=flip_amount,
                 inflow_column=inflow_column,
                 outflow_column=outflow_column,
+                column_mapping=mapping_dict,
+                chart_account_map=chart_account_map,
             )
             detected_format = "excel"
         else:
@@ -87,10 +130,11 @@ async def preview_import(
                                 flip_amount=flip_amount,
                                 inflow_column=inflow_column,
                                 outflow_column=outflow_column,
+                                column_mapping=mapping_dict,
                             )
                             detected_format = "excel"
                         except Exception:
-                            transactions = import_service.parse_csv(content)
+                            transactions = import_service.parse_csv(content, column_mapping=mapping_dict)
                             detected_format = "csv"
     except Exception as e:
         logger.error(

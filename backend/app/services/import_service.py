@@ -20,6 +20,45 @@ from app.services.fx_rate_service import stamp_primary_amount
 from app.services.payee_service import get_or_create_payee
 
 
+def extract_headers(content: bytes, filename: str) -> list[str]:
+    """Extract headers from a CSV or Excel file."""
+    if filename.lower().endswith('.csv'):
+        try:
+            text = content.decode('utf-8-sig')
+        except UnicodeDecodeError:
+            text = content.decode('latin-1')
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        if not text:
+            return []
+        first_line = text.splitlines()[0]
+        candidates = [';', ',', '\t', '|']
+        best_delim = ','
+        max_fields = 1
+        for d in candidates:
+            fields = first_line.split(d)
+            if len(fields) > max_fields:
+                max_fields = len(fields)
+                best_delim = d
+        reader = csv.reader(io.StringIO(first_line), delimiter=best_delim)
+        headers = next(reader, [])
+        return [h.strip() for h in headers if h.strip()]
+    elif filename.lower().endswith('.xls') or filename.lower().endswith('.xlsx'):
+        if content.startswith(b'PK\x03\x04'):
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            sheet = wb.active
+            for r in sheet.iter_rows(values_only=True):
+                return [str(c).strip() for c in r if c is not None and str(c).strip()]
+        else:
+            import xlrd
+            wb = xlrd.open_workbook(file_contents=content)
+            sheet = wb.sheet_by_index(0)
+            if sheet.nrows > 0:
+                row = sheet.row_values(0)
+                return [str(c).strip() for c in row if c is not None and str(c).strip()]
+    return []
+
+
 def parse_ofx(content: bytes) -> list[TransactionBase]:
     """Parse OFX file content and return transactions."""
     import re
@@ -211,6 +250,8 @@ def parse_csv(
     flip_amount: bool = False,
     inflow_column: str | None = None,
     outflow_column: str | None = None,
+    column_mapping: dict | None = None,
+    chart_account_map: dict | None = None,
 ) -> list[TransactionBase]:
     """Parse CSV file content and return transactions.
 
@@ -256,40 +297,61 @@ def parse_csv(
     # Normalize field names: lowercase, strip whitespace AND accents
     fieldnames = [_strip_accents(f.lower().strip()) for f in (reader.fieldnames or [])]
 
-    # Map common column names
-    date_cols = ['date', 'data', 'dt', 'transaction_date', 'data_transacao']
-    desc_cols = ['description', 'descricao', 'desc', 'memo', 'historico', 'lancamento']
-    amount_cols = ['amount', 'valor', 'value', 'quantia', 'valor r$', 'valor_r$', 'valor(r$)', 'valor ($)']
-    type_cols = ['type', 'tipo', 'debito/credito', 'dc', 'd/c', 'natureza']
-    currency_cols = ['currency', 'moeda', 'currency_code']
-    fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
-    external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
+    if column_mapping:
+        def _get_mapped_col(key: str):
+            val = column_mapping.get(key)
+            return _strip_accents(val.lower().strip()) if val else None
 
-    def find_col(candidates):
-        for c in candidates:
-            if c in fieldnames:
-                return c
-        return None
-
-    date_col = find_col(date_cols)
-    desc_col = find_col(desc_cols)
-    external_id_col = find_col(external_id_cols)
-    type_col = find_col(type_cols)
-
-    # In split mode, we don't require a single amount column
-    use_split = inflow_column and outflow_column
-    inflow_col = _strip_accents(inflow_column.lower().strip()) if inflow_column else None
-    outflow_col = _strip_accents(outflow_column.lower().strip()) if outflow_column else None
-
-    if use_split:
-        if inflow_col not in fieldnames or outflow_col not in fieldnames:
-            raise ValueError(f"Inflow/outflow columns not found in CSV. Available columns: {', '.join(fieldnames)}")
-        amount_col = None
+        date_col = _get_mapped_col('date')
+        desc_col = _get_mapped_col('description')
+        amount_col = _get_mapped_col('amount')
+        inflow_col = _get_mapped_col('inflow')
+        outflow_col = _get_mapped_col('outflow')
+        type_col = _get_mapped_col('type')
+        currency_col = _get_mapped_col('currency')
+        fx_rate_col = _get_mapped_col('fx_rate')
+        external_id_col = _get_mapped_col('external_id')
+        payee_col = _get_mapped_col('payee')
+        chart_account_code_col = _get_mapped_col('chart_account_code')
+        use_split = bool(inflow_col and outflow_col)
     else:
-        amount_col = find_col(amount_cols)
+        # Map common column names
+        date_cols = ['date', 'data', 'dt', 'transaction_date', 'data_transacao']
+        desc_cols = ['description', 'descricao', 'desc', 'memo', 'historico', 'lancamento']
+        amount_cols = ['amount', 'valor', 'value', 'quantia', 'valor r$', 'valor_r$', 'valor(r$)', 'valor ($)']
+        type_cols = ['type', 'tipo', 'debito/credito', 'dc', 'd/c', 'natureza']
+        currency_cols = ['currency', 'moeda', 'currency_code']
+        fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
+        external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
+        payee_cols = ['payee', 'favorecido', 'beneficiario', 'pagador']
 
-    currency_col = find_col(currency_cols)
-    fx_rate_col = find_col(fx_rate_cols)
+        def find_col(candidates):
+            for c in candidates:
+                if c in fieldnames:
+                    return c
+            return None
+
+        date_col = find_col(date_cols)
+        desc_col = find_col(desc_cols)
+        external_id_col = find_col(external_id_cols)
+        type_col = find_col(type_cols)
+        payee_col = find_col(payee_cols)
+        chart_account_code_col = None
+
+        # In split mode, we don't require a single amount column
+        use_split = inflow_column and outflow_column
+        inflow_col = _strip_accents(inflow_column.lower().strip()) if inflow_column else None
+        outflow_col = _strip_accents(outflow_column.lower().strip()) if outflow_column else None
+
+        if use_split:
+            if inflow_col not in fieldnames or outflow_col not in fieldnames:
+                raise ValueError(f"Inflow/outflow columns not found in CSV. Available columns: {', '.join(fieldnames)}")
+            amount_col = None
+        else:
+            amount_col = find_col(amount_cols)
+
+        currency_col = find_col(currency_cols)
+        fx_rate_col = find_col(fx_rate_cols)
 
     if not date_col or not desc_col:
         raise ValueError(
@@ -312,19 +374,31 @@ def parse_csv(
     for row in reader:
         # Normalize row keys (strip accents to match detected columns)
         row = {_strip_accents(k.lower().strip()): v for k, v in row.items()}
+        
+        import_error = None
+        txn_date = None
+        amount = Decimal('0')
+        txn_type = "debit"
+        description = "Unknown"
+
+        # Parse description first so we have something to show on error
+        if desc_col and row.get(desc_col):
+            description = row[desc_col].strip()
 
         # Parse date
-        date_str = row[date_col].strip()
-        txn_date = None
-        for fmt in date_formats:
-            try:
-                txn_date = datetime.strptime(date_str, fmt).date()
-                break
-            except ValueError:
-                continue
-
-        if not txn_date:
-            continue  # Skip invalid dates
+        if not date_col or not row.get(date_col):
+            import_error = "Data em branco"
+        else:
+            date_str = row[date_col].strip()
+            for fmt in date_formats:
+                try:
+                    txn_date = datetime.strptime(date_str, fmt).date()
+                    break
+                except ValueError:
+                    continue
+            if not txn_date:
+                import_error = "Formato de data inválido"
+                txn_date = datetime.now(timezone.utc).date() # Fallback for pydantic
 
         # Parse amount
         if use_split:
@@ -347,26 +421,32 @@ def parse_csv(
                 amount = outflow
                 txn_type = "debit"
             else:
-                continue  # Skip rows with no amount
+                if not import_error:
+                    import_error = "Valor zerado ou em branco"
         else:
-            amount_str = normalize_amount(row[amount_col])
+            if not amount_col or not row.get(amount_col):
+                if not import_error:
+                    import_error = "Valor em branco"
+            else:
+                amount_str = normalize_amount(row.get(amount_col, ""))
+                try:
+                    amount = Decimal(amount_str)
+                except Exception:
+                    if not import_error:
+                        import_error = "Valor inválido"
+                    amount = Decimal('0')
 
-            try:
-                amount = Decimal(amount_str)
-            except Exception:
-                continue  # Skip invalid amounts
+                if flip_amount:
+                    amount = -amount
 
-            if flip_amount:
-                amount = -amount
-
-            txn_type = "credit" if amount > 0 else "debit"
-            if type_col and row.get(type_col):
-                t_val = row[type_col].strip().lower()
-                if t_val in ('d', 'debit', 'debito', 'dbito'):
-                    txn_type = "debit"
-                elif t_val in ('c', 'credit', 'credito', 'crdito'):
-                    txn_type = "credit"
-            amount = abs(amount)
+                txn_type = "credit" if amount > 0 else "debit"
+                if type_col and row.get(type_col):
+                    t_val = row[type_col].strip().lower()
+                    if t_val in ('d', 'debit', 'debito', 'dbito'):
+                        txn_type = "debit"
+                    elif t_val in ('c', 'credit', 'credito', 'crdito'):
+                        txn_type = "credit"
+                amount = abs(amount)
 
         # Extract optional currency and fx_rate from CSV columns
         txn_currency = None
@@ -383,17 +463,39 @@ def parse_csv(
 
         # Extract external_id if available (e.g. Nubank's 'Identificador')
         txn_external_id = None
-        if external_id_col and row.get(external_id_col):
+        if external_id_col and external_id_col in row and row[external_id_col]:
             txn_external_id = row[external_id_col].strip() or None
+            
+        txn_payee = None
+        if payee_col and payee_col in row and row[payee_col]:
+            txn_payee = row[payee_col].strip() or None
+
+        txn_chart_account_id = None
+        if chart_account_code_col and chart_account_code_col in row and row[chart_account_code_col]:
+            code_val = row[chart_account_code_col].strip()
+            if code_val:
+                if chart_account_map is not None:
+                    code_lower = code_val.lower()
+                    if code_lower in chart_account_map:
+                        txn_chart_account_id = chart_account_map[code_lower]
+                    else:
+                        if not import_error:
+                            import_error = f"Plano de contas código '{code_val}' não encontrado"
+                else:
+                    if not import_error:
+                        import_error = f"Código '{code_val}' fornecido mas o mapa de contas está vazio"
 
         transactions.append(TransactionBase(
-            description=row[desc_col].strip(),
+            description=description,
             amount=abs(amount),
             date=txn_date,
             type=txn_type,
             currency=txn_currency,
             fx_rate=txn_fx_rate,
             external_id=txn_external_id,
+            payee_raw=txn_payee,
+            chart_account_id=txn_chart_account_id,
+            import_error=import_error,
         ))
 
     return transactions
@@ -765,6 +867,8 @@ def parse_excel(
     flip_amount: bool = False,
     inflow_column: str | None = None,
     outflow_column: str | None = None,
+    column_mapping: dict | None = None,
+    chart_account_map: dict | None = None,
 ) -> list[TransactionBase]:
     """Parse XLS or XLSX file content and return transactions."""
     rows = []
@@ -803,6 +907,7 @@ def parse_excel(
     currency_cols = ['currency', 'moeda', 'currency_code']
     fx_rate_cols = ['fx_rate', 'fx_rate_used', 'taxa_cambio', 'exchange_rate', 'taxa']
     external_id_cols = ['identificador', 'external_id', 'id', 'fitid']
+    payee_cols = ['payee', 'favorecido', 'beneficiario', 'pagador']
     origem_cols = ['origem', 'remetente']
     destino_cols = ['destino', 'destinatario']
 
@@ -816,41 +921,67 @@ def parse_excel(
     currency_col_idx = -1
     fx_rate_col_idx = -1
     external_id_col_idx = -1
+    payee_col_idx = -1
     origem_col_idx = -1
     destino_col_idx = -1
+    chart_account_code_col_idx = -1
 
-    for idx, row in enumerate(rows):
-        normalized_row = [_normalize_header(cell) for cell in row]
-        def find_index(candidates):
-            for c in candidates:
-                if c in normalized_row:
-                    return normalized_row.index(c)
-            return -1
+    if column_mapping and rows:
+        header_idx = 0
+        normalized_row = [_normalize_header(cell) for cell in rows[0]]
 
-        d_idx = find_index(date_cols)
-        desc_idx = find_index(desc_cols)
-        if d_idx != -1 and desc_idx != -1:
-            header_idx = idx
-            date_col_idx = d_idx
-            desc_col_idx = desc_idx
-            if inflow_column:
-                norm_in = _normalize_header(inflow_column)
-                inflow_col_idx = normalized_row.index(norm_in) if norm_in in normalized_row else -1
-            else:
-                inflow_col_idx = find_index(inflow_cols)
-            if outflow_column:
-                norm_out = _normalize_header(outflow_column)
-                outflow_col_idx = normalized_row.index(norm_out) if norm_out in normalized_row else -1
-            else:
-                outflow_col_idx = find_index(outflow_cols)
-            amount_col_idx = find_index(amount_cols)
-            type_col_idx = find_index(type_cols)
-            currency_col_idx = find_index(currency_cols)
-            fx_rate_col_idx = find_index(fx_rate_cols)
-            external_id_col_idx = find_index(external_id_cols)
-            origem_col_idx = find_index(origem_cols)
-            destino_col_idx = find_index(destino_cols)
-            break
+        def _get_mapped_col_idx(key: str):
+            val = column_mapping.get(key)
+            if not val: return -1
+            norm_val = _normalize_header(val)
+            return normalized_row.index(norm_val) if norm_val in normalized_row else -1
+
+        date_col_idx = _get_mapped_col_idx('date')
+        desc_col_idx = _get_mapped_col_idx('description')
+        amount_col_idx = _get_mapped_col_idx('amount')
+        inflow_col_idx = _get_mapped_col_idx('inflow')
+        outflow_col_idx = _get_mapped_col_idx('outflow')
+        type_col_idx = _get_mapped_col_idx('type')
+        currency_col_idx = _get_mapped_col_idx('currency')
+        fx_rate_col_idx = _get_mapped_col_idx('fx_rate')
+        external_id_col_idx = _get_mapped_col_idx('external_id')
+        payee_col_idx = _get_mapped_col_idx('payee')
+        chart_account_code_col_idx = _get_mapped_col_idx('chart_account_code')
+    else:
+        for idx, row in enumerate(rows):
+            normalized_row = [_normalize_header(cell) for cell in row]
+            def find_index(candidates):
+                for c in candidates:
+                    if c in normalized_row:
+                        return normalized_row.index(c)
+                return -1
+
+            d_idx = find_index(date_cols)
+            desc_idx = find_index(desc_cols)
+            if d_idx != -1 and desc_idx != -1:
+                header_idx = idx
+                date_col_idx = d_idx
+                desc_col_idx = desc_idx
+                if inflow_column:
+                    norm_in = _normalize_header(inflow_column)
+                    inflow_col_idx = normalized_row.index(norm_in) if norm_in in normalized_row else -1
+                else:
+                    inflow_col_idx = find_index(inflow_cols)
+                if outflow_column:
+                    norm_out = _normalize_header(outflow_column)
+                    outflow_col_idx = normalized_row.index(norm_out) if norm_out in normalized_row else -1
+                else:
+                    outflow_col_idx = find_index(outflow_cols)
+
+                amount_col_idx = find_index(amount_cols)
+                type_col_idx = find_index(type_cols)
+                currency_col_idx = find_index(currency_cols)
+                fx_rate_col_idx = find_index(fx_rate_cols)
+                external_id_col_idx = find_index(external_id_cols)
+                payee_col_idx = find_index(payee_cols)
+                origem_col_idx = find_index(origem_cols)
+                destino_col_idx = find_index(destino_cols)
+                break
 
     if header_idx == -1:
         raise ValueError("Could not detect Excel columns. Expected columns like: date, description, amount (or Portuguese equivalents: data, descricao, valor)")
@@ -863,20 +994,30 @@ def parse_excel(
     for idx, row in enumerate(rows[header_idx + 1:]):
         if not any(cell is not None and cell != '' for cell in row):
             continue
-        cell_date = row[date_col_idx]
+        
+        import_error = None
+        txn_date = None
+        amount = Decimal('0')
+        txn_type = "debit"
+        desc = "Unknown"
+
+        if desc_col_idx != -1 and desc_col_idx < len(row):
+            desc = str(row[desc_col_idx]).strip() if row[desc_col_idx] is not None else ""
+            if not desc or desc.lower() in ('total', 'saldo anterior', 'saldo atual', 'saldo'):
+                continue
+
+        cell_date = row[date_col_idx] if date_col_idx != -1 and date_col_idx < len(row) else None
         txn_date = parse_excel_date(cell_date, datemode)
         if not txn_date:
-            continue
-        desc = str(row[desc_col_idx]).strip() if row[desc_col_idx] is not None else ""
-        if not desc or desc.lower() in ('total', 'saldo anterior', 'saldo atual', 'saldo'):
-            continue
+            import_error = "Formato de data inválido ou em branco"
+            txn_date = datetime.now(timezone.utc).date()
 
-        origem_val = str(row[origem_col_idx]).strip() if origem_col_idx != -1 and row[origem_col_idx] is not None else ""
-        destino_val = str(row[destino_col_idx]).strip() if destino_col_idx != -1 and row[destino_col_idx] is not None else ""
+        origem_val = str(row[origem_col_idx]).strip() if origem_col_idx != -1 and origem_col_idx < len(row) and row[origem_col_idx] is not None else ""
+        destino_val = str(row[destino_col_idx]).strip() if destino_col_idx != -1 and destino_col_idx < len(row) and row[destino_col_idx] is not None else ""
 
         if use_split:
-            inflow_val = parse_excel_amount(row[inflow_col_idx])
-            outflow_val = parse_excel_amount(row[outflow_col_idx])
+            inflow_val = parse_excel_amount(row[inflow_col_idx]) if inflow_col_idx < len(row) else None
+            outflow_val = parse_excel_amount(row[outflow_col_idx]) if outflow_col_idx < len(row) else None
             inflow = abs(inflow_val) if inflow_val is not None else Decimal('0')
             outflow = abs(outflow_val) if outflow_val is not None else Decimal('0')
             if inflow > 0:
@@ -886,15 +1027,18 @@ def parse_excel(
                 amount = outflow
                 txn_type = "debit"
             else:
-                continue
+                if not import_error:
+                    import_error = "Valor zerado ou em branco"
         else:
-            amount_val = parse_excel_amount(row[amount_col_idx])
+            amount_val = parse_excel_amount(row[amount_col_idx]) if amount_col_idx != -1 and amount_col_idx < len(row) else None
             if amount_val is None:
-                continue
-            if flip_amount:
-                amount_val = -amount_val
-            txn_type = "credit" if amount_val > 0 else "debit"
-            amount = abs(amount_val)
+                if not import_error:
+                    import_error = "Valor em branco ou inválido"
+            else:
+                if flip_amount:
+                    amount_val = -amount_val
+                txn_type = "credit" if amount_val > 0 else "debit"
+                amount = abs(amount_val)
 
         if type_col_idx != -1 and row[type_col_idx] is not None:
             t_val = str(row[type_col_idx]).strip().lower()
@@ -910,7 +1054,38 @@ def parse_excel(
 
         txn_currency = str(row[currency_col_idx]).strip().upper() if currency_col_idx != -1 and row[currency_col_idx] else None
         txn_fx_rate = parse_excel_amount(row[fx_rate_col_idx]) if fx_rate_col_idx != -1 and row[fx_rate_col_idx] is not None else None
-        txn_external_id = str(row[external_id_col_idx]).strip() if external_id_col_idx != -1 and row[external_id_col_idx] else None
+        txn_external_id = None
+        if external_id_col_idx != -1 and external_id_col_idx < len(row):
+            ext_val = row[external_id_col_idx]
+            if ext_val:
+                txn_external_id = str(ext_val).strip() or None
+                
+        txn_payee = None
+        if payee_col_idx != -1 and payee_col_idx < len(row):
+            p_val = row[payee_col_idx]
+            if p_val:
+                txn_payee = str(p_val).strip() or None
+
+        txn_chart_account_id = None
+        if chart_account_code_col_idx != -1 and chart_account_code_col_idx < len(row):
+            code_val = row[chart_account_code_col_idx]
+            if code_val is not None and str(code_val).strip():
+                # Convert float "531.0" back to "531" in excel
+                if isinstance(code_val, float) and code_val.is_integer():
+                    code_str = str(int(code_val)).strip()
+                else:
+                    code_str = str(code_val).strip()
+                
+                if chart_account_map is not None:
+                    code_lower = code_str.lower()
+                    if code_lower in chart_account_map:
+                        txn_chart_account_id = chart_account_map[code_lower]
+                    else:
+                        if not import_error:
+                            import_error = f"Plano de contas código '{code_str}' não encontrado"
+                else:
+                    if not import_error:
+                        import_error = f"Código '{code_str}' fornecido mas o mapa de contas está vazio"
 
         transactions.append(TransactionBase(
             description=desc,
@@ -920,5 +1095,8 @@ def parse_excel(
             currency=txn_currency,
             fx_rate=txn_fx_rate,
             external_id=txn_external_id,
+            payee_raw=txn_payee,
+            chart_account_id=txn_chart_account_id,
+            import_error=import_error,
         ))
     return transactions

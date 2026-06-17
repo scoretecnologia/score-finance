@@ -383,6 +383,7 @@ export const transactions = {
     flip_amount?: boolean
     inflow_column?: string
     outflow_column?: string
+    column_mapping?: Record<string, string>
   }): Promise<{ transactions: Transaction[]; detected_format: string }> => {
     const formData = new FormData()
     formData.append('file', file)
@@ -390,7 +391,14 @@ export const transactions = {
     if (options?.flip_amount) formData.append('flip_amount', 'true')
     if (options?.inflow_column) formData.append('inflow_column', options.inflow_column)
     if (options?.outflow_column) formData.append('outflow_column', options.outflow_column)
+    if (options?.column_mapping) formData.append('column_mapping', JSON.stringify(options.column_mapping))
     const { data } = await api.post('/transactions/import/preview', formData)
+    return data
+  },
+  extractHeaders: async (file: File): Promise<{ headers: string[] }> => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await api.post('/transactions/import/extract-headers', formData)
     return data
   },
   import: async (account_id: string, transactions: Transaction[], filename: string, detected_format: string): Promise<{ imported: number; skipped: number; import_log_id: string }> => {
