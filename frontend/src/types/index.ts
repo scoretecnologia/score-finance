@@ -162,6 +162,7 @@ export interface Transaction {
   total_installments: number | null
   installment_total_amount: number | null
   installment_purchase_date: string | null
+  import_error?: string | null
 }
 
 export interface Payee {

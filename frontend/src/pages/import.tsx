@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Transaction, ImportLog } from '@/types'
-import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Settings2, Download, Loader2 } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Download, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
 import { useAuth } from '@/contexts/auth-context'
@@ -258,8 +258,6 @@ export default function ImportPage() {
     resetMappingOptions()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
-
-  const isCsvFile = fileName?.toLowerCase().endsWith('.csv') ?? false
 
   const transactions = previewData?.transactions || []
   const totalCount = transactions.length
