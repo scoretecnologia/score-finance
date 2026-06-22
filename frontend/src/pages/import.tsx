@@ -92,9 +92,9 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
 
   const baseTransactions = previewData?.transactions || []
   const transactions = useMemo(() => {
-    return csvFlipAmount 
+    return (csvFlipAmount 
       ? baseTransactions.map(tx => ({ ...tx, type: tx.type === 'credit' ? 'debit' : 'credit' }))
-      : baseTransactions
+      : baseTransactions) as Transaction[]
   }, [baseTransactions, csvFlipAmount])
 
   const { data: duplicateFlags, isFetching: isCheckingDuplicates } = useQuery({
