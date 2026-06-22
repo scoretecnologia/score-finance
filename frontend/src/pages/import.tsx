@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -59,6 +59,8 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
   const [geminiKey, setGeminiKey] = useState('')
   const [unselectedIndexes, setUnselectedIndexes] = useState<Set<number>>(new Set())
   const [filterType, setFilterType] = useState<'all' | 'duplicates'>('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
 
   // Mapping options
   const [mappingMode, setMappingMode] = useState(false)
@@ -88,10 +90,17 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     queryFn: () => importLogsApi.list(accountType ? { account_type: accountType } : undefined),
   })
 
+  const baseTransactions = previewData?.transactions || []
+  const transactions = useMemo(() => {
+    return csvFlipAmount 
+      ? baseTransactions.map(tx => ({ ...tx, type: tx.type === 'credit' ? 'debit' : 'credit' }))
+      : baseTransactions
+  }, [baseTransactions, csvFlipAmount])
+
   const { data: duplicateFlags, isFetching: isCheckingDuplicates } = useQuery({
-    queryKey: ['import-duplicates', selectedAccount, previewData?.transactions],
-    queryFn: () => transactionsApi.checkDuplicates(selectedAccount, previewData!.transactions),
-    enabled: !!selectedAccount && !!previewData?.transactions?.length,
+    queryKey: ['import-duplicates', selectedAccount, transactions],
+    queryFn: () => transactionsApi.checkDuplicates(selectedAccount, transactions),
+    enabled: !!selectedAccount && !!transactions.length,
   })
 
   const { data: aiSettings, isLoading: isLoadingAiSettings } = useQuery({
@@ -191,7 +200,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
 
   const startStreamingImport = useCallback(() => {
     if (!previewData || !selectedAccount) return
-    const transactionsToImport = previewData.transactions.filter((_, i) => !unselectedIndexes.has(i))
+    const transactionsToImport = transactions.filter((_, i) => !unselectedIndexes.has(i))
     if (transactionsToImport.length === 0) return
     
     setImportProgress({ active: true, phase: 'preparing', current: 0, total: transactionsToImport.length, imported: 0, skipped: 0 })
@@ -248,7 +257,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
         abortRef.current = null
       }
     })
-  }, [previewData, selectedAccount, fileName, queryClient, t, resetMappingOptions])
+  }, [previewData, selectedAccount, fileName, queryClient, t, resetMappingOptions, transactions, unselectedIndexes])
 
   const handleCancelImport = useCallback(() => {
     if (importProgress && importProgress.phase !== 'done' && importProgress.phase !== 'error') {
@@ -272,6 +281,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
   function processFile(file: File) {
     setFileName(file.name)
     setCurrentFile(file)
+    setCurrentPage(1)
     resetMappingOptions()
 
     const lowerName = file.name.toLowerCase()
@@ -288,9 +298,8 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     if (!currentFile) return
     if (currentFile.name.toLowerCase().endsWith('.pdf')) return
     
-    const options: { date_format?: string; flip_amount?: boolean; column_mapping?: Record<string, string> } = {}
+    const options: { date_format?: string; column_mapping?: Record<string, string> } = {}
     if (csvDateFormat) options.date_format = csvDateFormat
-    if (csvFlipAmount) options.flip_amount = true
     
     if (Object.keys(columnMapping).length > 0) {
       const hasDate = !!columnMapping['date'];
@@ -334,11 +343,15 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     setCurrentFile(null)
     setSelectedAccount('')
     setUnselectedIndexes(new Set())
+    setCurrentPage(1)
     resetMappingOptions()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const transactions = previewData?.transactions || []
+  const filteredTransactions = transactions.map((tx, i) => ({ tx, i })).filter(({ i }) => filterType === 'all' || (duplicateFlags && duplicateFlags[i]))
+  const totalPages = Math.ceil(filteredTransactions.length / pageSize)
+  const currentTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  
   const selectedTransactions = transactions.filter((_, i) => !unselectedIndexes.has(i))
   const totalCount = selectedTransactions.length
   const incomeCount = selectedTransactions.filter(t => t.type === 'credit' && !t.import_error).length
@@ -612,13 +625,13 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
             <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex bg-muted rounded-md p-1">
                 <button
-                  onClick={() => setFilterType('all')}
+                  onClick={() => { setFilterType('all'); setCurrentPage(1); }}
                   className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Todos
                 </button>
                 <button
-                  onClick={() => setFilterType('duplicates')}
+                  onClick={() => { setFilterType('duplicates'); setCurrentPage(1); }}
                   className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'duplicates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   Apenas Duplicados
@@ -689,7 +702,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {previewData.transactions.map((tx, i) => ({ tx, i })).filter(({ i }) => filterType === 'all' || (duplicateFlags && duplicateFlags[i])).slice(0, 50).map(({ tx, i }) => {
+                {currentTransactions.map(({ tx, i }) => {
                   const isDuplicate = duplicateFlags?.[i] ?? false;
                   const isSelected = !unselectedIndexes.has(i);
                   return (
@@ -710,7 +723,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                         />
                       </TableCell>
                       <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(tx.date).toLocaleDateString(locale)}
+                        {new Date(tx.date.includes('T') ? tx.date : `${tx.date}T12:00:00`).toLocaleDateString(locale)}
                       </TableCell>
                       <TableCell className={`py-3 text-sm ${!isSelected ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                         <div className="flex items-center gap-2">
@@ -736,10 +749,35 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                 })}
               </TableBody>
             </Table>
-            {previewData.transactions.length > 50 && (
-              <p className="text-xs text-muted-foreground text-center py-3 border-t border-border">
-                {t('import.showingPreview', { shown: 50, total: previewData.transactions.length })}
-              </p>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-muted/30">
+                <span className="text-xs text-muted-foreground">
+                  Mostrando {((currentPage - 1) * pageSize) + 1} até {Math.min(currentPage * pageSize, filteredTransactions.length)} de {filteredTransactions.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Anterior
+                  </Button>
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Próxima
+                  </Button>
+                </div>
+              </div>
             )}
           </div>
 
