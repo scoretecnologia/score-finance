@@ -33,6 +33,9 @@ import {
   Plus,
   Settings,
   Archive,
+  Banknote,
+  Terminal,
+  CircleDollarSign,
 } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { BankConnectDialog } from '@/components/bank-connect-dialog'
@@ -59,6 +62,9 @@ const ACCOUNT_TYPE_CONFIG: Record<string, { icon: React.ElementType; color: stri
   credit_card: { icon: CreditCard,  color: 'text-violet-600', bg: 'bg-violet-100', label: 'accounts.typeCreditCard' },
   investment:  { icon: TrendingUp,  color: 'text-amber-600',  bg: 'bg-amber-100',  label: 'accounts.typeInvestment' },
   wallet:      { icon: Wallet,      color: 'text-rose-600',   bg: 'bg-rose-100',   label: 'accounts.typeWallet' },
+  cash:        { icon: Banknote,    color: 'text-emerald-500', bg: 'bg-emerald-50',  label: 'accounts.typeCash' },
+  pos_machine: { icon: Terminal,    color: 'text-blue-500',    bg: 'bg-blue-50',     label: 'accounts.typePosMachine' },
+  credits:     { icon: CircleDollarSign, color: 'text-fuchsia-500', bg: 'bg-fuchsia-50', label: 'accounts.typeCredits' },
 }
 
 function getTypeConfig(type: string) {
@@ -740,6 +746,9 @@ function AccountDialog({
                     <option value="credit_card">{t('accounts.typeCreditCard')}</option>
                     <option value="investment">{t('accounts.typeInvestment')}</option>
                     <option value="wallet">{t('accounts.typeWallet')}</option>
+                    <option value="cash">{t('accounts.typeCash')}</option>
+                    <option value="pos_machine">{t('accounts.typePosMachine')}</option>
+                    <option value="credits">{t('accounts.typeCredits')}</option>
                   </select>
                 </div>
                   {/* Currency selector removed, defaults to BRL */}
