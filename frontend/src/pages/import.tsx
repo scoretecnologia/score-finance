@@ -16,7 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import type { Transaction, ImportLog } from '@/types'
-import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Download, Loader2, Settings } from 'lucide-react'
+import { Upload, FileText, X, CheckCircle2, AlertCircle, History, Trash2, Download, Loader2, Settings, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
 import { useAuth } from '@/contexts/auth-context'
@@ -61,6 +61,22 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
   const [filterType, setFilterType] = useState<'all' | 'duplicates'>('all')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 20
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<'description' | 'amount' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterType, sortField, sortDirection])
+
+  const handleSort = (field: 'description' | 'amount') => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
 
   // Mapping options
   const [mappingMode, setMappingMode] = useState(false)
@@ -344,11 +360,48 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     setSelectedAccount('')
     setUnselectedIndexes(new Set())
     setCurrentPage(1)
+    setSearchTerm('')
+    setSortField(null)
+    setSortDirection('asc')
     resetMappingOptions()
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const filteredTransactions = transactions.map((tx, i) => ({ tx, i })).filter(({ i }) => filterType === 'all' || (duplicateFlags && duplicateFlags[i]))
+  const filteredTransactions = useMemo(() => {
+    const mapped = transactions.map((tx, i) => ({ tx, i }))
+    
+    // Filter by duplicates if requested
+    let result = mapped.filter(({ i }) => filterType === 'all' || (duplicateFlags && duplicateFlags[i]))
+    
+    // Filter by search term
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase()
+      result = result.filter(({ tx }) => {
+        const descMatches = tx.description.toLowerCase().includes(term)
+        const amountMatches = tx.amount.toString().includes(term) || formatCurrency(tx.amount).toLowerCase().includes(term)
+        return descMatches || amountMatches
+      })
+    }
+    
+    // Sort
+    if (sortField) {
+      result.sort((a, b) => {
+        if (sortField === 'description') {
+          const valA = a.tx.description.toLowerCase()
+          const valB = b.tx.description.toLowerCase()
+          return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+        }
+        if (sortField === 'amount') {
+          const valA = a.tx.type === 'credit' ? Number(a.tx.amount) : -Number(a.tx.amount)
+          const valB = b.tx.type === 'credit' ? Number(b.tx.amount) : -Number(b.tx.amount)
+          return sortDirection === 'asc' ? valA - valB : valB - valA
+        }
+        return 0
+      })
+    }
+    
+    return result
+  }, [transactions, filterType, duplicateFlags, searchTerm, sortField, sortDirection])
   const totalPages = Math.ceil(filteredTransactions.length / pageSize)
   const currentTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
   
@@ -622,21 +675,35 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
               )}
             </div>
             {/* Filter and Bulk Actions */}
-            <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex bg-muted rounded-md p-1">
-                <button
-                  onClick={() => { setFilterType('all'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Todos
-                </button>
-                <button
-                  onClick={() => { setFilterType('duplicates'); setCurrentPage(1); }}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'duplicates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  Apenas Duplicados
-                </button>
+            <div className="mt-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                <div className="flex bg-muted rounded-md p-1 shrink-0">
+                  <button
+                    onClick={() => { setFilterType('all'); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'all' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => { setFilterType('duplicates'); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-sm transition-colors ${filterType === 'duplicates' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                  >
+                    Apenas Duplicados
+                  </button>
+                </div>
+                
+                <div className="relative flex-1 sm:w-64">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Buscar por descrição ou valor..."
+                    className="pl-9 pr-4 py-1.5 w-full border border-border rounded-lg text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
+
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -693,60 +760,88 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                   <TableHead className="text-xs font-medium text-muted-foreground py-3 w-[110px]">
                     {t('transactions.date')}
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground py-3">
-                    {t('transactions.description')}
+                  <TableHead 
+                    className="text-xs font-medium text-muted-foreground py-3 cursor-pointer select-none hover:text-foreground transition-colors group"
+                    onClick={() => handleSort('description')}
+                  >
+                    <div className="flex items-center gap-1">
+                      {t('transactions.description')}
+                      {sortField === 'description' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
                   </TableHead>
-                  <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[160px]">
-                    {t('transactions.amount')}
+                  <TableHead 
+                    className="text-xs font-medium text-muted-foreground py-3 pr-5 cursor-pointer select-none hover:text-foreground transition-colors group w-[160px]"
+                    onClick={() => handleSort('amount')}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      {t('transactions.amount')}
+                      {sortField === 'amount' ? (
+                        sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {currentTransactions.map(({ tx, i }) => {
-                  const isDuplicate = duplicateFlags?.[i] ?? false;
-                  const isSelected = !unselectedIndexes.has(i);
-                  return (
-                    <TableRow key={i} className={`border-b border-border last:border-0 hover:bg-muted ${!isSelected ? 'opacity-40' : ''} ${isDuplicate ? 'bg-muted/30' : ''} ${tx.import_error ? 'bg-amber-50/50' : ''}`}>
-                      <TableCell className="pl-5 w-10">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            setUnselectedIndexes(prev => {
-                              const next = new Set(prev)
-                              if (e.target.checked) next.delete(i)
-                              else next.add(i)
-                              return next
-                            })
-                          }}
-                          className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                        />
-                      </TableCell>
-                      <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {new Date(tx.date.includes('T') ? tx.date : `${tx.date}T12:00:00`).toLocaleDateString(locale)}
-                      </TableCell>
-                      <TableCell className={`py-3 text-sm ${!isSelected ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                        <div className="flex items-center gap-2">
-                          {tx.import_error && <AlertCircle size={14} className="text-amber-500 shrink-0" />}
-                          <span className={tx.import_error ? 'text-amber-900 font-medium' : ''}>{tx.description}</span>
-                          {isDuplicate && !tx.import_error && (
-                            <span className="text-[10px] bg-muted-foreground/20 text-muted-foreground px-1.5 py-0.5 rounded uppercase font-semibold">
-                              Já lançado
-                            </span>
-                          )}
-                          {tx.import_error && (
-                            <span className="text-[10px] bg-amber-500/10 text-amber-700 px-1.5 py-0.5 rounded font-semibold border border-amber-200">
-                              {tx.import_error}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className={`py-3 pr-5 text-right text-sm font-bold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {tx.type === 'credit' ? '+' : '−'}{formatCurrency(Math.abs(Number(tx.amount)), userCurrency, locale)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {filteredTransactions.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
+                      Nenhum lançamento encontrado para a busca.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  currentTransactions.map(({ tx, i }) => {
+                    const isDuplicate = duplicateFlags?.[i] ?? false;
+                    const isSelected = !unselectedIndexes.has(i);
+                    return (
+                      <TableRow key={i} className={`border-b border-border last:border-0 hover:bg-muted ${!isSelected ? 'opacity-40' : ''} ${isDuplicate ? 'bg-muted/30' : ''} ${tx.import_error ? 'bg-amber-50/50' : ''}`}>
+                        <TableCell className="pl-5 w-10">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              setUnselectedIndexes(prev => {
+                                const next = new Set(prev)
+                                if (e.target.checked) next.delete(i)
+                                else next.add(i)
+                                return next
+                              })
+                            }}
+                            className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                          />
+                        </TableCell>
+                        <TableCell className="py-3 text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(tx.date.includes('T') ? tx.date : `${tx.date}T12:00:00`).toLocaleDateString(locale)}
+                        </TableCell>
+                        <TableCell className={`py-3 text-sm ${!isSelected ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                          <div className="flex items-center gap-2">
+                            {tx.import_error && <AlertCircle size={14} className="text-amber-500 shrink-0" />}
+                            <span className={tx.import_error ? 'text-amber-900 font-medium' : ''}>{tx.description}</span>
+                            {isDuplicate && !tx.import_error && (
+                              <span className="text-[10px] bg-muted-foreground/20 text-muted-foreground px-1.5 py-0.5 rounded uppercase font-semibold">
+                                Já lançado
+                              </span>
+                            )}
+                            {tx.import_error && (
+                              <span className="text-[10px] bg-amber-500/10 text-amber-700 px-1.5 py-0.5 rounded font-semibold border border-amber-200">
+                                {tx.import_error}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className={`py-3 pr-5 text-right text-sm font-bold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
+                          {tx.type === 'credit' ? '+' : '−'}{formatCurrency(Math.abs(Number(tx.amount)), userCurrency, locale)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
             {totalPages > 1 && (

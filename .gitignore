@@ -4,3 +4,5 @@
 .playwright-mcp/
 .claude
 docs/plans/
+
+*.db

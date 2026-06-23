@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 class TransactionParsed(BaseModel):
     date: str = Field(description="Transaction date in YYYY-MM-DD format")
+    original_date: str = Field(default="", description="Original purchase date in YYYY-MM-DD format (from the DD/MM shown on the invoice)")
     description: str = Field(description="Description of the transaction")
     amount: float = Field(description="Amount of the transaction. Use negative for expenses/debits and positive for payments/credits.")
 
@@ -29,6 +30,16 @@ def extract_text_from_pdf(content: bytes) -> str:
     return text
 
 
+def _sort_and_strip_original_date(transactions: list[dict]) -> list[dict]:
+    """
+    Remove temporary 'original_date' fields from transaction dicts before returning
+    to caller, preserving the original sequence returned by the model.
+    """
+    for txn in transactions:
+        txn.pop("original_date", None)
+    return transactions
+
+
 def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict]:
     """
     Extracts text from a PDF and uses Gemini to parse transactions.
@@ -44,9 +55,11 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
     1. Identifique a **data de vencimento** (due date) da fatura no texto.
     2. Encontre a tabela de lançamentos e extraia todas as transações individuais.
     3. A data (`date`) de **todas** as transações extraídas deve ser obrigatoriamente a **data de vencimento** da fatura, no formato YYYY-MM-DD (ou seja, todas as transações no JSON de retorno devem ter exatamente a mesma data correspondente ao vencimento da fatura).
-    4. Ignore o cabeçalho, avisos, totais, propagandas, e saldo anterior/atual.
-    5. Retorne as transações formatadas estritamente de acordo com o JSON schema fornecido.
-    6. O valor (amount) deve ser float: use valor negativo para compras (despesas/débitos) e valor positivo para pagamentos de fatura ou estornos (créditos).
+    4. Cada transação na fatura possui uma data no formato DD/MM que indica o dia da compra. Preencha o campo `original_date` com essa data convertida para YYYY-MM-DD, usando o ano adequado (se a compra é em dezembro e a fatura vence em janeiro, o ano da compra é o ano anterior ao do vencimento; caso contrário, use o mesmo ano do vencimento).
+    5. Ignore o cabeçalho, avisos, totais, propagandas, e saldo anterior/atual.
+    6. Retorne as transações formatadas estritamente de acordo com o JSON schema fornecido.
+    7. O valor (amount) deve ser float: use valor negativo para compras (despesas/débitos) e valor positivo para pagamentos de fatura ou estornos (créditos).
+    8. IMPORTANTE: Retorne as transações na **mesma ordem** em que aparecem na fatura.
     
     Texto da fatura:
     {text}
@@ -84,10 +97,11 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
                                     "type": "object",
                                     "properties": {
                                         "date": {"type": "string", "description": "Transaction date in YYYY-MM-DD format"},
+                                        "original_date": {"type": "string", "description": "Original purchase date in YYYY-MM-DD format from the DD/MM shown on the invoice"},
                                         "description": {"type": "string", "description": "Description of the transaction"},
                                         "amount": {"type": "number", "description": "Amount of the transaction. Use negative for expenses/debits and positive for payments/credits."}
                                     },
-                                    "required": ["date", "description", "amount"],
+                                    "required": ["date", "original_date", "description", "amount"],
                                     "additionalProperties": False
                                 }
                             }
@@ -114,6 +128,7 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
             choice_content = res_json["choices"][0]["message"]["content"]
             data = json.loads(choice_content)
             transactions = data.get("transactions", [])
+            transactions = _sort_and_strip_original_date(transactions)
             logger.info(f"Successfully parsed {len(transactions)} transactions via OpenRouter.")
             return transactions
         except Exception as e:
@@ -134,6 +149,7 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
     
     try:
         data = json.loads(response.text)
+        data = _sort_and_strip_original_date(data)
         logger.info(f"Successfully parsed {len(data)} transactions via Gemini.")
         return data
     except Exception as e:

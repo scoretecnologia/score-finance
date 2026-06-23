@@ -3,7 +3,7 @@ import io
 import re
 import uuid
 import xml.etree.ElementTree as ET
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
 
 from ofxparse import OfxParser
@@ -556,7 +556,9 @@ async def import_transactions(
 
     imported = 0
     skipped = 0
-    for txn_data in transactions:
+    from datetime import timezone, timedelta
+    base_time = datetime.now(timezone.utc)
+    for idx, txn_data in enumerate(transactions):
         # Resolve currency: CSV value > account currency
         txn_currency = txn_data.currency or account_currency
 
@@ -603,6 +605,7 @@ async def import_transactions(
             currency=txn_currency,
             payee=import_payee_raw,
             payee_id=import_payee_id,
+            created_at=base_time - timedelta(seconds=idx),
         )
         apply_effective_date(transaction, account)
 
@@ -703,6 +706,8 @@ async def import_transactions_streamed(
     # Phase: importing
     imported = 0
     skipped = 0
+    from datetime import timezone, timedelta
+    base_time = datetime.now(timezone.utc)
 
     # Determine progress report interval (report every ~2-5% or every 5 items, whichever is smaller)
     report_interval = max(1, min(5, total // 20))
@@ -758,6 +763,7 @@ async def import_transactions_streamed(
             currency=txn_currency,
             payee=import_payee_raw,
             payee_id=import_payee_id,
+            created_at=base_time - timedelta(seconds=idx),
         )
         apply_effective_date(transaction, account)
 

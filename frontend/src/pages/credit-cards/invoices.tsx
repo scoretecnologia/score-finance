@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { CreditCard, FileText, Loader2, SearchX } from 'lucide-react'
+import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { invoicesApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +19,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 
 export default function CreditCardInvoices() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortField, setSortField] = useState<'description' | 'amount' | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+
+  useEffect(() => {
+    if (!selectedInvoiceId) {
+      setSearchTerm('')
+      setSortField(null)
+      setSortDirection('asc')
+    }
+  }, [selectedInvoiceId])
 
   const { data: invoices, isLoading } = useQuery({
     queryKey: ['invoices'],
@@ -29,6 +40,37 @@ export default function CreditCardInvoices() {
     queryKey: ['invoice-transactions', selectedInvoiceId],
     queryFn: () => invoicesApi.getInvoiceTransactions(selectedInvoiceId!),
     enabled: !!selectedInvoiceId,
+  })
+
+  const handleSort = (field: 'description' | 'amount') => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+  }
+
+  const filteredTransactions = (transactions || []).filter(txn => {
+    const term = searchTerm.toLowerCase()
+    const descMatches = txn.description.toLowerCase().includes(term)
+    const amountMatches = txn.amount.toString().includes(term) || formatCurrency(txn.amount).toLowerCase().includes(term)
+    return descMatches || amountMatches
+  })
+
+  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
+    if (!sortField) return 0
+    if (sortField === 'description') {
+      const valA = a.description.toLowerCase()
+      const valB = b.description.toLowerCase()
+      return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
+    }
+    if (sortField === 'amount') {
+      const valA = a.type === 'credit' ? Number(a.amount) : -Number(a.amount)
+      const valB = b.type === 'credit' ? Number(b.amount) : -Number(b.amount)
+      return sortDirection === 'asc' ? valA - valB : valB - valA
+    }
+    return 0
   })
 
   const getStatusBadge = (status: string) => {
@@ -173,6 +215,19 @@ export default function CreditCardInvoices() {
             </div>
           </DialogHeader>
 
+          <div className="px-6 py-3 border-b border-border bg-muted/5 flex items-center justify-between gap-4">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar por descrição ou valor..."
+                className="pl-9 pr-4 py-1.5 w-full border border-border rounded-lg text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
           <div className="flex-1 overflow-y-auto p-0">
             {isLoadingTransactions ? (
               <div className="h-48 flex items-center justify-center">
@@ -182,17 +237,45 @@ export default function CreditCardInvoices() {
               <div className="text-center py-12 text-muted-foreground">
                 Nenhum lançamento encontrado.
               </div>
+            ) : sortedTransactions.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Nenhum resultado encontrado para a busca.
+              </div>
             ) : (
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 shadow-sm">
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="pl-6 w-24">Data</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead className="text-right pr-6">Valor</TableHead>
+                    <TableHead 
+                      className="cursor-pointer select-none hover:text-foreground transition-colors group"
+                      onClick={() => handleSort('description')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Descrição
+                        {sortField === 'description' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="text-right pr-6 cursor-pointer select-none hover:text-foreground transition-colors group"
+                      onClick={() => handleSort('amount')}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        Valor
+                        {sortField === 'amount' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {transactions.map((txn) => (
+                  {sortedTransactions.map((txn) => (
                     <TableRow key={txn.id} className="hover:bg-muted/30">
                       <TableCell className="pl-6 text-muted-foreground whitespace-nowrap">
                         {new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR')}
@@ -211,7 +294,7 @@ export default function CreditCardInvoices() {
           </div>
           
           <div className="p-4 border-t border-border/50 bg-muted/20 flex items-center justify-between text-sm text-muted-foreground">
-            <span>{transactions?.length || 0} lançamentos</span>
+            <span>{filteredTransactions.length} de {transactions?.length || 0} lançamentos</span>
             {selectedInvoice && (
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1.5">

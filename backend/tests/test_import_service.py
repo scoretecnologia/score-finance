@@ -114,7 +114,7 @@ class TestParseCsv:
         assert transactions[0].amount == Decimal("50.00")
 
     def test_parse_csv_skips_invalid_dates(self):
-        """Rows with unparseable dates should be silently skipped."""
+        """Rows with unparseable dates should have import_error set instead of being skipped."""
         csv_content = (
             "date,description,amount\n"
             "not-a-date,BAD ROW,-10.00\n"
@@ -122,11 +122,14 @@ class TestParseCsv:
         )
         transactions = parse_csv(csv_content.encode("utf-8"))
 
-        assert len(transactions) == 1
-        assert transactions[0].description == "GOOD ROW"
+        assert len(transactions) == 2
+        assert transactions[0].description == "BAD ROW"
+        assert transactions[0].import_error is not None
+        assert transactions[1].description == "GOOD ROW"
+        assert transactions[1].import_error is None
 
     def test_parse_csv_skips_invalid_amounts(self):
-        """Rows with unparseable amounts should be silently skipped."""
+        """Rows with unparseable amounts should have import_error set instead of being skipped."""
         csv_content = (
             "date,description,amount\n"
             "2026-02-20,BAD AMOUNT,abc\n"
@@ -134,8 +137,11 @@ class TestParseCsv:
         )
         transactions = parse_csv(csv_content.encode("utf-8"))
 
-        assert len(transactions) == 1
-        assert transactions[0].description == "GOOD AMOUNT"
+        assert len(transactions) == 2
+        assert transactions[0].description == "BAD AMOUNT"
+        assert transactions[0].import_error is not None
+        assert transactions[1].description == "GOOD AMOUNT"
+        assert transactions[1].import_error is None
 
     def test_parse_csv_dd_mm_yyyy_format(self):
         """DD/MM/YYYY date format should be correctly parsed."""
