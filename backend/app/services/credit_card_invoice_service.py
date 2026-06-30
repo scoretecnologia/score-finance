@@ -22,28 +22,39 @@ async def recalculate_invoice_paid_amount(session: AsyncSession, invoice_id: uui
     if not invoice:
         return
         
-    # Get transaction stats for this invoice
-    # total_amount: sum of credit transactions
-    # paid_amount: sum of debit transactions
-    # count: total transactions
-    stats_result = await session.execute(
-        select(
-            func.count(Transaction.id),
-            func.sum(Transaction.amount).filter(Transaction.type == "credit"),
-            func.sum(Transaction.amount).filter(Transaction.type == "debit")
-        ).where(Transaction.invoice_id == invoice_id)
+    # Get all transactions linked to this invoice
+    tx_result = await session.execute(
+        select(Transaction).where(Transaction.invoice_id == invoice_id)
     )
-    count, total_amount, paid_amount = stats_result.one()
+    txs = tx_result.scalars().all()
     
-    count = count or 0
+    count = len(txs)
     
     if count == 0:
         await session.delete(invoice)
+        await session.flush()
         return
-        
+    
+    total_amount = Decimal('0.00')
+    paid_amount = Decimal('0.00')
+    
+    for tx in txs:
+        # Transactions on the same account as the invoice:
+        #   debit  = expense (purchase on the card)
+        #   credit = payment (refund/payment credited to the card)
+        # Transactions from other accounts:
+        #   always treated as payments (money transferred TO the card)
+        if tx.account_id == invoice.account_id:
+            if tx.type == "debit":
+                total_amount += tx.amount
+            else:
+                paid_amount += tx.amount
+        else:
+            paid_amount += tx.amount
+    
     invoice.transaction_count = count
-    invoice.total_amount = total_amount or Decimal('0.00')
-    invoice.paid_amount = paid_amount or Decimal('0.00')
+    invoice.total_amount = total_amount
+    invoice.paid_amount = paid_amount
     
     if invoice.paid_amount >= invoice.total_amount and invoice.total_amount > 0:
         invoice.status = "PAID"

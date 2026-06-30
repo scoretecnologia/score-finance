@@ -47,6 +47,13 @@ class RuleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaginatedRules(BaseModel):
+    items: list[RuleRead]
+    total: int
+    page: int
+    limit: int
+
+
 class RuleBulkImportRequest(BaseModel):
     rules: list[RuleCreate]
     skip_duplicates: bool = True

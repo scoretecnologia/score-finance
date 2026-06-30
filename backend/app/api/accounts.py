@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
@@ -166,6 +167,8 @@ async def delete_account(
         deleted = await account_service.delete_account(session, account_id, company.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except SQLAlchemyError:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Could not delete account. It may have related records.")
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account not found")
 

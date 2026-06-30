@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -492,9 +493,9 @@ export default function AccountsPage() {
           <DialogHeader>
             <DialogTitle>{t('accounts.confirmDeleteTitle')}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription className="text-sm text-muted-foreground">
             {t('accounts.confirmDeleteDesc')}
-          </p>
+          </DialogDescription>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeletingId(null)}>
               {t('common.cancel')}
@@ -516,9 +517,9 @@ export default function AccountsPage() {
           <DialogHeader>
             <DialogTitle>{t('accounts.close')}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription className="text-sm text-muted-foreground">
             {t('accounts.confirmClose')}
-          </p>
+          </DialogDescription>
           {accountsList?.find(a => a.id === closingAccountId)?.connection_id && (
             <p className="text-sm text-amber-600 font-medium">
               {t('accounts.confirmCloseBank')}

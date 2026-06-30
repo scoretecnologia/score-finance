@@ -2,7 +2,7 @@
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.rule import Rule
@@ -544,13 +544,23 @@ async def get_installed_packs(session: AsyncSession, company_id: uuid.UUID) -> d
     return result
 
 
-async def get_rules(session: AsyncSession, company_id: uuid.UUID) -> list[Rule]:
+async def get_rules(
+    session: AsyncSession, company_id: uuid.UUID, page: int = 1, limit: int = 10
+) -> tuple[list[Rule], int]:
+    total_result = await session.execute(
+        select(func.count(Rule.id)).where(Rule.company_id == company_id)
+    )
+    total = total_result.scalar() or 0
+
+    offset = (page - 1) * limit
     result = await session.execute(
         select(Rule)
         .where(Rule.company_id == company_id)
         .order_by(Rule.priority, Rule.id)
+        .offset(offset)
+        .limit(limit)
     )
-    return list(result.scalars().all())
+    return list(result.scalars().all()), total
 
 
 async def get_rule(session: AsyncSession, rule_id: uuid.UUID, company_id: uuid.UUID) -> Optional[Rule]:
@@ -660,6 +670,7 @@ async def apply_rules_to_transaction(
 ) -> None:
     """Apply all active rules to a transaction, modifying it in-place. Commits nothing."""
     from app.models.chart_account import ChartAccount
+    from app.models.cost_center import CostCenter
 
     result = await session.execute(
         select(Rule)
@@ -674,13 +685,23 @@ async def apply_rules_to_transaction(
     )
     valid_chart_account_ids = {row[0] for row in ca_result.all()}
 
+    # Pre-load valid cost_center IDs
+    cc_result = await session.execute(
+        select(CostCenter.id).where(CostCenter.company_id == company_id)
+    )
+    valid_cost_center_ids = {row[0] for row in cc_result.all()}
+
     category_set = transaction.category_id is not None
 
     for rule in rules:
         conditions = rule.conditions or []
         actions = rule.actions or []
         if evaluate_conditions(rule.conditions_op, conditions, transaction):
-            category_set = apply_rule_actions(actions, transaction, category_set, valid_chart_account_ids)
+            category_set = apply_rule_actions(
+                actions, transaction, category_set,
+                valid_chart_account_ids=valid_chart_account_ids,
+                valid_cost_center_ids=valid_cost_center_ids,
+            )
 
 
 async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
@@ -689,6 +710,7 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
     from app.models.account import Account
     from app.models.bank_connection import BankConnection
     from app.models.chart_account import ChartAccount
+    from app.models.cost_center import CostCenter
 
     result = await session.execute(
         select(Transaction)
@@ -717,6 +739,12 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
     )
     valid_chart_account_ids = {row[0] for row in ca_result.all()}
 
+    # Pre-load valid cost_center IDs
+    cc_result = await session.execute(
+        select(CostCenter.id).where(CostCenter.company_id == company_id)
+    )
+    valid_cost_center_ids = {row[0] for row in cc_result.all()}
+
     count = 0
     for tx in transactions:
         matched = False
@@ -730,8 +758,13 @@ async def apply_all_rules(session: AsyncSession, company_id: uuid.UUID) -> int:
                     # First match: reset so rules are applied from scratch
                     tx.category_id = None
                     tx.notes = None
+                    tx.cost_center_id = None
                     matched = True
-                category_set = apply_rule_actions(actions, tx, category_set, valid_chart_account_ids)
+                category_set = apply_rule_actions(
+                    actions, tx, category_set,
+                    valid_chart_account_ids=valid_chart_account_ids,
+                    valid_cost_center_ids=valid_cost_center_ids,
+                )
 
         if matched:
             count += 1

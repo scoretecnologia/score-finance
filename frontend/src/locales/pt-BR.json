@@ -550,8 +550,10 @@
     "addCondition": "Adicionar condição",
     "addAction": "Adicionar ação",
     "setCategory": "Definir categoria",
-    "setPayee": "Definir beneficiário",
+    "setPayee": "Definir fornecedor",
+    "setCostCenter": "Definir centro de custo",
     "selectPayee": "Selecionar beneficiário...",
+    "selectCostCenter": "Selecionar centro de custo...",
     "appendNotes": "Adicionar tags/notas",
     "selectCategory": "Selecionar categoria...",
     "selectAccount": "Selecionar conta...",
@@ -592,7 +594,8 @@
     "updated": "Categoria atualizada",
     "deleted": "Categoria excluída",
     "collapseAll": "Recolher tudo",
-    "expandAll": "Expandir tudo"
+    "expandAll": "Expandir tudo",
+    "confirmDeleteDesc": "Tem certeza que deseja excluir esta categoria? Esta ação não pode ser desfeita."
   },
   "chartAccounts": {
     "title": "Contas Analíticas",
@@ -617,7 +620,17 @@
     "coaImportedWithSkipped": "Importado: {{groups}} grupos, {{categories}} categorias, {{accounts}} contas ({{skipped}} duplicadas ignoradas)",
     "created": "Conta criada",
     "updated": "Conta atualizada",
-    "deleted": "Conta excluída"
+    "deleted": "Conta excluída",
+    "selected": "selecionada(s)",
+    "applyColor": "Aplicar cor",
+    "changeIcon": "Alterar ícone",
+    "bulkDeleted": "{{count}} conta(s) excluída(s)",
+    "bulkBlocked": "{{count}} conta(s) não puderam ser excluídas:",
+    "bulkUpdated": "{{count}} conta(s) atualizada(s)",
+    "bulkDeleteResult": "Resultado da exclusão em lote",
+    "confirmBulkDelete": "Excluir contas analíticas?",
+    "confirmBulkDeleteDesc": "Tem certeza que deseja excluir {{count}} conta(s) analítica(s)?",
+    "confirmDeleteDesc": "Tem certeza que deseja excluir esta conta analítica? Esta ação não pode ser desfeita."
   },
   "groups": {
     "title": "Grupos de Categorias",
@@ -632,7 +645,8 @@
     "updated": "Grupo atualizado",
     "deleted": "Grupo excluído",
     "noGroup": "Sem grupo",
-    "systemGroup": "Grupo do sistema"
+    "systemGroup": "Grupo do sistema",
+    "confirmDeleteDesc": "Tem certeza que deseja excluir este grupo? Esta ação não pode ser desfeita."
   },
   "import": {
     "acceptedFormats": "Formatos aceitos: OFX, CSV, QIF, CAMT, XLS, XLSX",

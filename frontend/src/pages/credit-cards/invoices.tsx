@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useCallback } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
 import { invoicesApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
@@ -22,6 +22,12 @@ export default function CreditCardInvoices() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState<'description' | 'amount' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const queryClient = useQueryClient()
+
+  const handleRefresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['invoices'] })
+    queryClient.invalidateQueries({ queryKey: ['invoice-transactions'] })
+  }, [queryClient])
 
   useEffect(() => {
     if (!selectedInvoiceId) {
@@ -31,16 +37,18 @@ export default function CreditCardInvoices() {
     }
   }, [selectedInvoiceId])
 
-  const { data: invoices, isLoading } = useQuery({
+  const { data: invoices, isLoading, isFetching } = useQuery({
     queryKey: ['invoices'],
     queryFn: () => invoicesApi.getInvoices(),
   })
 
-  const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
+  const { data: transactions, isLoading: isLoadingTransactions, isFetching: isFetchingTransactions } = useQuery({
     queryKey: ['invoice-transactions', selectedInvoiceId],
     queryFn: () => invoicesApi.getInvoiceTransactions(selectedInvoiceId!),
     enabled: !!selectedInvoiceId,
   })
+
+  const isRefreshing = isFetching || isFetchingTransactions
 
   const handleSort = (field: 'description' | 'amount') => {
     if (sortField === field) {
@@ -100,7 +108,18 @@ export default function CreditCardInvoices() {
     <div className="space-y-6 pb-10">
       <PageHeader 
         section="Cartões de Crédito"
-        title="Faturas de Cartão" 
+        title="Faturas de Cartão"
+        action={
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Atualizar"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Atualizando...' : 'Atualizar'}
+          </button>
+        }
       />
 
       <Card className="border-border/50 shadow-sm bg-card/50 backdrop-blur-sm overflow-hidden">
@@ -192,7 +211,12 @@ export default function CreditCardInvoices() {
       </Card>
 
       {/* Transactions Modal */}
-      <Dialog open={!!selectedInvoiceId} onOpenChange={(open) => !open && setSelectedInvoiceId(null)}>
+      <Dialog open={!!selectedInvoiceId} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedInvoiceId(null)
+          handleRefresh()
+        }
+      }}>
         <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden gap-0 bg-card border-border/50 shadow-xl">
           <DialogHeader className="p-6 border-b border-border/50 bg-muted/10">
             <div className="flex items-start justify-between">
@@ -247,7 +271,7 @@ export default function CreditCardInvoices() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="pl-6 w-24">Data</TableHead>
                     <TableHead 
-                      className="cursor-pointer select-none hover:text-foreground transition-colors group"
+                      className="cursor-pointer select-none hover:text-foreground transition-colors group w-1/2"
                       onClick={() => handleSort('description')}
                     >
                       <div className="flex items-center gap-1">
@@ -275,19 +299,29 @@ export default function CreditCardInvoices() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedTransactions.map((txn) => (
+                  {sortedTransactions.map((txn) => {
+                    const isPayment = txn.type === 'credit' || (selectedInvoice && txn.account_id !== selectedInvoice.account_id)
+                    return (
                     <TableRow key={txn.id} className="hover:bg-muted/30">
                       <TableCell className="pl-6 text-muted-foreground whitespace-nowrap">
                         {new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                       </TableCell>
-                      <TableCell className="font-medium text-foreground">
-                        {txn.description}
+                      <TableCell className="font-medium text-foreground max-w-0">
+                        <div className="flex items-center gap-2 truncate" title={txn.description}>
+                          <span className="truncate">{txn.description}</span>
+                          {isPayment ? (
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider shrink-0 text-emerald-600 border-emerald-200 bg-emerald-500/10">Pagamento</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] uppercase tracking-wider shrink-0 text-rose-600 border-rose-200 bg-rose-500/10 hidden sm:inline-flex">Despesa</Badge>
+                          )}
+                        </div>
                       </TableCell>
-                      <TableCell className={`text-right font-medium pr-6 ${txn.type === 'credit' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {txn.type === 'credit' ? '+' : '-'}{formatCurrency(txn.amount)}
+                      <TableCell className={`text-right font-medium pr-6 ${isPayment ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isPayment ? '+' : '-'}{formatCurrency(txn.amount)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    )
+                  })}
                 </TableBody>
               </Table>
             )}

@@ -401,7 +401,7 @@ function TransactionForm({
               cost_center_id: costCenterId || null,
               payee_id: payeeId || null,
               account_id: accountId || undefined,
-              invoice_id: (type === 'debit' && isPayingInvoice && invoiceId) ? invoiceId : null,
+              invoice_id: (isPayingInvoice && invoiceId) ? invoiceId : null,
               notes: notes.trim() || null,
             } as Partial<Transaction>
         const recurringData = isCreating && isRecurring
@@ -563,7 +563,7 @@ function TransactionForm({
         )}
       </div>
 
-      {type === 'debit' && !isSynced && (
+      {!isSynced && (
         <div className="space-y-3 border rounded-md p-3">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -575,7 +575,7 @@ function TransactionForm({
               }}
               className="rounded border-gray-300"
             />
-            <span className="text-sm font-medium">É um pagamento de fatura?</span>
+            <span className="text-sm font-medium">Vincular a uma fatura de cartão?</span>
           </label>
           {isPayingInvoice && (
             <div className="pt-1">

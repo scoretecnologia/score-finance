@@ -86,6 +86,7 @@ def apply_rule_actions(
     tx: "Transaction",
     category_already_set: bool,
     valid_chart_account_ids: set[uuid.UUID] | None = None,
+    valid_cost_center_ids: set[uuid.UUID] | None = None,
 ) -> bool:
     """Apply actions to transaction in-place. Returns updated category_already_set flag.
 
@@ -93,6 +94,9 @@ def apply_rule_actions(
     target UUID is not in the set will be silently skipped — this prevents
     FK-violation crashes when a rule still references a chart-account that has
     been deleted.
+
+    If *valid_cost_center_ids* is provided, ``set_cost_center`` actions whose
+    target UUID is not in the set will be silently skipped.
     """
     for action in actions:
         op = action.get("op")
@@ -113,6 +117,15 @@ def apply_rule_actions(
         elif op == "set_payee":
             try:
                 tx.payee_id = uuid.UUID(str(value))
+            except (ValueError, AttributeError):
+                pass
+
+        elif op == "set_cost_center":
+            try:
+                target_id = uuid.UUID(str(value))
+                if valid_cost_center_ids is not None and target_id not in valid_cost_center_ids:
+                    continue
+                tx.cost_center_id = target_id
             except (ValueError, AttributeError):
                 pass
 

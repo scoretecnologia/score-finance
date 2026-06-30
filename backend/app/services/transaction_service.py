@@ -243,6 +243,7 @@ async def create_transaction(
         type=data.type,
         source="manual",
         notes=data.notes,
+        invoice_id=data.invoice_id,
     )
     apply_effective_date(transaction, account)
     session.add(transaction)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_async_session
 from app.core.auth import current_active_user
 from app.models.company import Company
+from app.models.category import Category
 from app.models.credit_card_invoice import CreditCardInvoice
 from app.models.user import User
 from app.core.tenant import get_current_company
@@ -68,7 +69,6 @@ async def get_invoice_transactions(
     company: Company = Depends(get_current_company),
 ):
     from app.models.transaction import Transaction
-    # Verify invoice belongs to company
     query_inv = select(CreditCardInvoice.id).where(
         CreditCardInvoice.id == invoice_id,
         CreditCardInvoice.company_id == company.id
@@ -78,10 +78,46 @@ async def get_invoice_transactions(
         from fastapi import HTTPException, status as http_status
         raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Invoice not found")
 
-    query = select(Transaction).where(
-        Transaction.invoice_id == invoice_id,
-        Transaction.company_id == company.id
-    ).order_by(Transaction.date.desc(), Transaction.created_at.desc())
+    query = (
+        select(Transaction)
+        .options(
+            selectinload(Transaction.category).selectinload(Category.chart_accounts),
+            selectinload(Transaction.chart_account),
+            selectinload(Transaction.cost_center),
+        )
+        .where(
+            Transaction.invoice_id == invoice_id,
+            Transaction.company_id == company.id
+        )
+        .order_by(Transaction.date.desc(), Transaction.created_at.desc())
+    )
     
     result = await session.execute(query)
     return result.scalars().all()
+
+
+@router.post("/{invoice_id}/recalculate", response_model=CreditCardInvoiceSchema)
+async def recalculate_invoice(
+    invoice_id: uuid.UUID,
+    session: AsyncSession = Depends(get_async_session),
+    user: User = Depends(current_active_user),
+    company: Company = Depends(get_current_company),
+):
+    from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
+    from fastapi import HTTPException, status as http_status
+
+    # Verify invoice belongs to company
+    query_inv = select(CreditCardInvoice).where(
+        CreditCardInvoice.id == invoice_id,
+        CreditCardInvoice.company_id == company.id
+    )
+    result_inv = await session.execute(query_inv)
+    invoice = result_inv.scalar_one_or_none()
+    
+    if not invoice:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail="Invoice not found")
+
+    await recalculate_invoice_paid_amount(session, invoice_id)
+    await session.commit()
+    await session.refresh(invoice)
+    return invoice

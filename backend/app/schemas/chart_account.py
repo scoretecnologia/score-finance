@@ -32,3 +32,28 @@ class ChartAccountRead(ChartAccountBase):
     is_system: bool
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BulkChartAccountDeleteRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
+class BulkChartAccountBlockedItem(BaseModel):
+    id: uuid.UUID
+    name: str
+    reason: str
+
+
+class BulkChartAccountDeleteResult(BaseModel):
+    deleted: list[uuid.UUID]
+    blocked: list[BulkChartAccountBlockedItem]
+
+
+class BulkChartAccountUpdateRequest(BaseModel):
+    ids: list[uuid.UUID]
+    icon: Optional[str] = None
+    color: Optional[str] = None
+
+
+class BulkChartAccountUpdateResult(BaseModel):
+    updated: int

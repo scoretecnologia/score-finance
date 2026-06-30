@@ -529,7 +529,9 @@
     "addAction": "Add action",
     "setCategory": "Set category",
     "setPayee": "Set payee",
+    "setCostCenter": "Set cost center",
     "selectPayee": "Select payee...",
+    "selectCostCenter": "Select cost center...",
     "appendNotes": "Append tags/notes",
     "selectCategory": "Select category...",
     "selectAccount": "Select account...",
@@ -570,7 +572,8 @@
     "updated": "Category updated",
     "deleted": "Category deleted",
     "expandAll": "Expand all",
-    "collapseAll": "Collapse all"
+    "collapseAll": "Collapse all",
+    "confirmDeleteDesc": "Are you sure you want to delete this category? This action cannot be undone."
   },
   "chartAccounts": {
     "title": "Chart Accounts",
@@ -595,7 +598,17 @@
     "coaImportedWithSkipped": "Imported: {{groups}} groups, {{categories}} categories, {{accounts}} accounts ({{skipped}} duplicates skipped)",
     "created": "Account created",
     "updated": "Account updated",
-    "deleted": "Account deleted"
+    "deleted": "Account deleted",
+    "selected": "selected",
+    "applyColor": "Apply color",
+    "changeIcon": "Change icon",
+    "bulkDeleted": "{{count}} account(s) deleted",
+    "bulkBlocked": "{{count}} account(s) could not be deleted:",
+    "bulkUpdated": "{{count}} account(s) updated",
+    "bulkDeleteResult": "Bulk delete result",
+    "confirmBulkDelete": "Delete chart accounts?",
+    "confirmBulkDeleteDesc": "Are you sure you want to delete {{count}} chart account(s)?",
+    "confirmDeleteDesc": "Are you sure you want to delete this chart account? This action cannot be undone."
   },
   "groups": {
     "title": "Category Groups",
@@ -610,7 +623,8 @@
     "updated": "Group updated",
     "deleted": "Group deleted",
     "noGroup": "No group",
-    "systemGroup": "System group"
+    "systemGroup": "System group",
+    "confirmDeleteDesc": "Are you sure you want to delete this group? This action cannot be undone."
   },
   "import": {
     "acceptedFormats": "Accepted formats: OFX, CSV, QIF, CAMT, XLS, XLSX",

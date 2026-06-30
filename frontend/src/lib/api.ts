@@ -175,6 +175,14 @@ export const chartAccounts = {
   delete: async (id: string): Promise<void> => {
     await api.delete(`/chart-accounts/${id}`)
   },
+  bulkDelete: async (ids: string[]): Promise<{ deleted: string[]; blocked: { id: string; name: string; reason: string }[] }> => {
+    const { data } = await api.post('/chart-accounts/bulk-delete', { ids })
+    return data
+  },
+  bulkUpdate: async (ids: string[], data: { icon?: string; color?: string }): Promise<{ updated: number }> => {
+    const { data: res } = await api.patch('/chart-accounts/bulk-update', { ids, ...data })
+    return res
+  },
 }
 
 export const costCenters = {
@@ -577,8 +585,8 @@ export const payees = {
 
 // Categorization Rules
 export const rules = {
-  list: async (): Promise<Rule[]> => {
-    const { data } = await api.get('/rules')
+  list: async (params?: { page?: number; limit?: number }): Promise<PaginatedResponse<Rule>> => {
+    const { data } = await api.get('/rules', { params })
     return data
   },
   create: async (rule: Omit<Rule, 'id' | 'user_id'>): Promise<Rule> => {

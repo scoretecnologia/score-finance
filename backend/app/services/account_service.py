@@ -3,7 +3,7 @@ from datetime import date as _Date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import case, func, select, or_
+from sqlalchemy import case, delete, func, select, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.account import Account
@@ -444,6 +444,22 @@ async def delete_account(session: AsyncSession, account_id: uuid.UUID, company_i
     )
     tx_ids = [row[0] for row in tx_result.all()]
     await cleanup_attachment_files(session, tx_ids)
+
+    # Remove or nullify FK references before deleting the account
+    from app.models.import_log import ImportLog
+    await session.execute(
+        delete(ImportLog).where(ImportLog.account_id == account_id)
+    )
+
+    from app.models.goal import Goal
+    await session.execute(
+        update(Goal).where(Goal.account_id == account_id).values(account_id=None)
+    )
+
+    from app.models.recurring_transaction import RecurringTransaction
+    await session.execute(
+        update(RecurringTransaction).where(RecurringTransaction.account_id == account_id).values(account_id=None)
+    )
 
     await session.delete(account)
     await session.commit()

@@ -33,6 +33,7 @@ class TransactionCreate(TransactionBase):
     notes: Optional[str] = None
     amount_primary: Optional[Decimal] = None
     fx_rate_used: Optional[Decimal] = None
+    invoice_id: Optional[uuid.UUID] = None
 
 
 class TransactionUpdate(BaseModel):
@@ -49,6 +50,7 @@ class TransactionUpdate(BaseModel):
     notes: Optional[str] = None
     amount_primary: Optional[Decimal] = None
     fx_rate_used: Optional[Decimal] = None
+    invoice_id: Optional[uuid.UUID] = None
 
 
 class TransactionRead(TransactionBase):
@@ -77,6 +79,7 @@ class TransactionRead(TransactionBase):
     total_installments: Optional[int] = None
     installment_total_amount: Optional[float] = None
     installment_purchase_date: Optional[_Date] = None
+    invoice_id: Optional[uuid.UUID] = None
 
     model_config = ConfigDict(from_attributes=True)
 

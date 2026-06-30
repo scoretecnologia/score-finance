@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import type { Category, CategoryGroup, ChartAccount } from '@/types'
-import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown, Upload, Download, X } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown, Upload, Download, X, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { IconPicker } from '@/components/icon-picker'
@@ -142,6 +142,64 @@ export default function CategoriesPage() {
     onSuccess: () => { invalidateAll(); toast.success(t('chartAccounts.deleted')) },
   })
 
+  // Bulk selection
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteResult, setBulkDeleteResult] = useState<{ deleted: string[]; blocked: { id: string; name: string; reason: string }[] } | null>(null)
+  const [bulkIcon, setBulkIcon] = useState('')
+  const [bulkColor, setBulkColor] = useState('')
+  const [bulkIconPickerOpen, setBulkIconPickerOpen] = useState(false)
+  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
+
+  const toggleSelectAccount = (id: string) => {
+    setSelectedAccountIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const clearSelection = () => {
+    setSelectedAccountIds(new Set())
+    setBulkDeleteResult(null)
+    setBulkIcon('')
+    setBulkColor('')
+    setBulkIconPickerOpen(false)
+  }
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => accountsApi.bulkDelete(ids),
+    onSuccess: (data) => {
+      setBulkDeleteResult(data)
+      invalidateAll()
+      if (data.blocked.length === 0) {
+        toast.success(t('chartAccounts.bulkDeleted', { count: data.deleted.length }))
+        clearSelection()
+      }
+    },
+    onError: () => toast.error(t('common.error')),
+  })
+
+  const bulkUpdateMutation = useMutation({
+    mutationFn: ({ ids, icon, color }: { ids: string[]; icon?: string; color?: string }) =>
+      accountsApi.bulkUpdate(ids, { icon, color }),
+    onSuccess: (data) => {
+      if (data.updated > 0) {
+        toast.success(t('chartAccounts.bulkUpdated', { count: data.updated }))
+        invalidateAll()
+        clearSelection()
+      }
+    },
+    onError: () => toast.error(t('common.error')),
+  })
+
+  const selectedAccounts = ((): ChartAccount[] => {
+    const allAccounts: ChartAccount[] = []
+    groups?.forEach(g => g.categories?.forEach(c => c.chart_accounts?.forEach(a => allAccounts.push(a))))
+    categoriesList?.filter(c => !c.group_id).forEach(c => c.chart_accounts?.forEach(a => allAccounts.push(a)))
+    return allAccounts.filter(a => selectedAccountIds.has(a.id))
+  })()
+
   const coaImportMutation = useMutation({
     mutationFn: (rows: typeof coaRows) => chartOfAccountsApi.import(rows),
     onSuccess: (data) => {
@@ -204,7 +262,14 @@ export default function CategoriesPage() {
   }
 
   const renderAccountItem = (acc: ChartAccount) => (
-    <div key={acc.id} className="flex items-center gap-3 px-4 sm:px-5 pl-10 sm:pl-16 py-2 border-b border-border last:border-0 hover:bg-muted transition-colors">
+    <div key={acc.id} className="flex items-center gap-3 px-4 sm:px-5 pl-10 sm:pl-16 py-2 border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
+      <input
+        type="checkbox"
+        className="h-4 w-4 rounded border-border accent-primary shrink-0"
+        checked={selectedAccountIds.has(acc.id)}
+        onChange={() => toggleSelectAccount(acc.id)}
+        onClick={(e) => e.stopPropagation()}
+      />
       <CategoryIcon icon={acc.icon} color={acc.color} size="sm" />
       <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">
         {acc.code ? <span className="text-muted-foreground mr-1.5">{acc.code}</span> : null}
@@ -218,7 +283,7 @@ export default function CategoriesPage() {
         >
           <Pencil size={13} />
         </button>
-        {!acc.is_system && (
+        {!acc.is_system && !selectedAccountIds.has(acc.id) && (
           <button
             className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
             onClick={() => setDeleteConfirm({ type: 'account', id: acc.id, name: acc.name })}
@@ -352,6 +417,65 @@ export default function CategoriesPage() {
       <PageHeader section={t('nav.settings')} title={t('chartAccounts.title')} />
 
       <SectionCard>
+        {selectedAccountIds.size > 0 && (
+          <div className="px-4 sm:px-5 py-3 border-b border-border bg-primary/5 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-foreground mr-2">
+              {selectedAccountIds.size} {t('chartAccounts.selected')}
+            </span>
+
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs text-muted-foreground">{t('groups.color')}</Label>
+              <input
+                type="color"
+                value={bulkColor}
+                onChange={(e) => setBulkColor(e.target.value)}
+                className="w-8 h-8 p-0.5 border border-border rounded cursor-pointer"
+              />
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              disabled={!bulkColor || bulkUpdateMutation.isPending}
+              onClick={() => {
+                const ids = Array.from(selectedAccountIds)
+                bulkUpdateMutation.mutate({ ids, color: bulkColor })
+              }}
+            >
+              {bulkUpdateMutation.isPending ? <RefreshCw size={12} className="animate-spin" /> : null}
+              {t('chartAccounts.applyColor')}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={() => setBulkIconPickerOpen(true)}
+            >
+              {t('chartAccounts.changeIcon')}
+            </Button>
+
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 gap-1.5"
+              disabled={bulkDeleteMutation.isPending}
+              onClick={() => setBulkConfirmOpen(true)}
+            >
+              {bulkDeleteMutation.isPending ? <RefreshCw size={12} className="animate-spin" /> : null}
+              {t('common.delete')}
+            </Button>
+
+            <button
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors ml-1"
+              onClick={clearSelection}
+              title={t('common.cancel')}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
         <SectionHeader
           title={t('chartAccounts.title')}
           titleExtra={
@@ -765,6 +889,83 @@ export default function CategoriesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk icon picker dialog */}
+      <Dialog open={bulkIconPickerOpen} onOpenChange={setBulkIconPickerOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('chartAccounts.changeIcon')}</DialogTitle>
+          </DialogHeader>
+          <IconPicker
+            value={bulkIcon}
+            color={bulkColor || '#6B7280'}
+            onChange={(icon) => {
+              setBulkIcon(icon)
+              const ids = Array.from(selectedAccountIds)
+              bulkUpdateMutation.mutate({ ids, icon })
+              setBulkIconPickerOpen(false)
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk delete result dialog */}
+      <Dialog open={!!bulkDeleteResult} onOpenChange={(open) => { if (!open) { setBulkDeleteResult(null); if (bulkDeleteResult?.deleted.length) clearSelection() } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('chartAccounts.bulkDeleteResult')}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+            {bulkDeleteResult?.deleted && bulkDeleteResult.deleted.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-emerald-600 mb-2">
+                  {t('chartAccounts.bulkDeleted', { count: bulkDeleteResult.deleted.length })}
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  {bulkDeleteResult.deleted.map(id => {
+                    const acc = selectedAccounts.find(a => a.id === id)
+                    return <li key={id}>• {acc?.name ?? id}</li>
+                  })}
+                </ul>
+              </div>
+            )}
+            {bulkDeleteResult?.blocked && bulkDeleteResult.blocked.length > 0 && (
+              <div>
+                <p className="text-sm font-medium text-rose-600 mb-2">
+                  {t('chartAccounts.bulkBlocked', { count: bulkDeleteResult.blocked.length })}
+                </p>
+                <ul className="text-xs text-muted-foreground space-y-2">
+                  {bulkDeleteResult.blocked.map(item => (
+                    <li key={item.id} className="flex flex-col gap-0.5">
+                      <span className="font-medium text-foreground">• {item.name}</span>
+                      <span className="text-rose-500 ml-3">{item.reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { setBulkDeleteResult(null); clearSelection() }}>
+              {t('common.cancel')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={bulkConfirmOpen}
+        title={t('chartAccounts.confirmBulkDelete')}
+        description={t('chartAccounts.confirmBulkDeleteDesc', { count: selectedAccountIds.size })}
+        confirmText={t('common.delete')}
+        cancelText={t('common.cancel')}
+        onConfirm={() => {
+          setBulkConfirmOpen(false)
+          bulkDeleteMutation.mutate(Array.from(selectedAccountIds))
+        }}
+        onClose={() => setBulkConfirmOpen(false)}
+        variant="destructive"
+      />
 
       <ConfirmDialog
         open={!!deleteConfirm}

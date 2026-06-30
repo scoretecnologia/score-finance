@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
@@ -8,20 +8,30 @@ from app.core.tenant import get_current_company
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
-from app.schemas.rule import RuleBulkImportRequest, RuleBulkImportResult, RuleCreate, RuleRead, RuleUpdate
+from app.schemas.rule import (
+    PaginatedRules,
+    RuleBulkImportRequest,
+    RuleBulkImportResult,
+    RuleCreate,
+    RuleRead,
+    RuleUpdate,
+)
 from app.services import rule_service
 from app.services.rule_service import DuplicateRuleError
 
 router = APIRouter(prefix="/api/rules", tags=["rules"])
 
 
-@router.get("", response_model=list[RuleRead])
+@router.get("", response_model=PaginatedRules)
 async def list_rules(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
 ):
-    return await rule_service.get_rules(session, company.id)
+    items, total = await rule_service.get_rules(session, company.id, page=page, limit=limit)
+    return PaginatedRules(items=items, total=total, page=page, limit=limit)
 
 
 @router.post("", response_model=RuleRead, status_code=status.HTTP_201_CREATED)

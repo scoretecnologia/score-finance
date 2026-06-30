@@ -800,6 +800,7 @@ async def import_transactions_streamed(
     if account and account.type == "credit_card" and imported > 0:
         from collections import Counter
         from app.models.credit_card_invoice import CreditCardInvoice
+        from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
         
         # Get imported transactions
         imported_txs_result = await session.execute(
@@ -808,11 +809,14 @@ async def import_transactions_streamed(
         imported_txs = imported_txs_result.scalars().all()
         
         if imported_txs:
+            # Override transaction date to the due date for credit cards
+            for tx in imported_txs:
+                tx.date = tx.effective_date
+            
             month_counter = Counter(tx.date.strftime("%Y-%m") for tx in imported_txs)
             month_reference = month_counter.most_common(1)[0][0]
             
-            total_amount = sum((tx.amount if tx.type == "debit" else -tx.amount) for tx in imported_txs)
-            
+            # Find or create invoice for this month
             existing_invoice = await session.execute(
                 select(CreditCardInvoice).where(
                     CreditCardInvoice.account_id == account_id,
@@ -825,14 +829,17 @@ async def import_transactions_streamed(
                     company_id=company_id,
                     account_id=account_id,
                     month_reference=month_reference,
-                    total_amount=total_amount,
-                    transaction_count=imported,
                     status="OPEN"
                 )
                 session.add(invoice)
-            else:
-                invoice.total_amount += total_amount
-                invoice.transaction_count += imported
+                await session.flush()
+            
+            # Link ALL imported transactions to this invoice
+            for tx in imported_txs:
+                tx.invoice_id = invoice.id
+            
+            # Recalculate totals from linked transactions
+            await recalculate_invoice_paid_amount(session, invoice.id)
 
     await session.commit()
 
