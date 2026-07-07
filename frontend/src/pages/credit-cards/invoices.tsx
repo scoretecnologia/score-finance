@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Trash2, X } from 'lucide-react'
+import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Trash2 } from 'lucide-react'
 import { invoicesApi, transactions as transactionsApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/format'

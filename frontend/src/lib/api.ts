@@ -495,6 +495,8 @@ export const transactions = {
     chart_account_id?: string
     chart_account_ids?: string[]
     uncategorized?: boolean
+    payee_id?: string
+    cardholder_name?: string
     type?: string
     account_type?: string
     from?: string
