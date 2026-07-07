@@ -51,7 +51,6 @@ export default function CreditCardInvoices() {
     enabled: !!selectedInvoiceId,
   })
 
-  })
 
   const bulkDeleteMutation = useMutation({
     mutationFn: async (ids: string[]) => {
