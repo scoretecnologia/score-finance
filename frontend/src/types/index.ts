@@ -152,6 +152,7 @@ export interface Transaction {
   payee_id: string | null
   payee_name: string | null
   notes: string | null
+  cardholder_name: string | null
   transfer_pair_id: string | null
   amount_primary: number | null
   fx_rate_used: number | null

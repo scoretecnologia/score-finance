@@ -59,6 +59,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
   const [geminiKey, setGeminiKey] = useState('')
   const [unselectedIndexes, setUnselectedIndexes] = useState<Set<number>>(new Set())
   const [filterType, setFilterType] = useState<'all' | 'duplicates'>('all')
+  const [filterCardholderName, setFilterCardholderName] = useState<string>('')
   const [currentPage, setCurrentPage] = useState(1)
   const pageSize = 20
   const [searchTerm, setSearchTerm] = useState('')
@@ -67,7 +68,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchTerm, filterType, sortField, sortDirection])
+  }, [searchTerm, filterType, filterCardholderName, sortField, sortDirection])
 
   const handleSort = (field: 'description' | 'amount') => {
     if (sortField === field) {
@@ -199,6 +200,15 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     setCsvHeaders([])
     setColumnMapping({})
     setMappingMode(false)
+  }, [])
+
+  const handleCardholderNameChange = useCallback((originalIndex: number, newName: string) => {
+    setPreviewData(prev => prev ? {
+      ...prev,
+      transactions: prev.transactions.map((tx, idx) => 
+        idx === originalIndex ? { ...tx, cardholder_name: newName } : tx
+      )
+    } : null)
   }, [])
 
   // Auto-deselect duplicates
@@ -360,6 +370,7 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     setSelectedAccount('')
     setUnselectedIndexes(new Set())
     setCurrentPage(1)
+    setFilterCardholderName('')
     setSearchTerm('')
     setSortField(null)
     setSortDirection('asc')
@@ -383,6 +394,11 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
       })
     }
     
+    // Filter by cardholder name
+    if (filterCardholderName) {
+      result = result.filter(({ tx }) => tx.cardholder_name === filterCardholderName)
+    }
+    
     // Sort
     if (sortField) {
       result.sort((a, b) => {
@@ -401,9 +417,15 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
     }
     
     return result
-  }, [transactions, filterType, duplicateFlags, searchTerm, sortField, sortDirection])
+  }, [transactions, filterType, filterCardholderName, duplicateFlags, searchTerm, sortField, sortDirection])
   const totalPages = Math.ceil(filteredTransactions.length / pageSize)
   const currentTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  
+  const uniqueCardholders = useMemo(() => {
+    if (!transactions) return []
+    const names = new Set(transactions.map(t => t.cardholder_name).filter(Boolean))
+    return Array.from(names) as string[]
+  }, [transactions])
   
   const selectedTransactions = transactions.filter((_, i) => !unselectedIndexes.has(i))
   const totalCount = selectedTransactions.length
@@ -702,6 +724,24 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+                
+                {uniqueCardholders.length > 0 && (
+                  <div className="relative">
+                    <select
+                      className="border border-border rounded-lg px-3 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary w-full sm:w-auto"
+                      value={filterCardholderName}
+                      onChange={(e) => {
+                        setFilterCardholderName(e.target.value)
+                        setCurrentPage(1)
+                      }}
+                    >
+                      <option value="">Todos os cartões</option>
+                      {uniqueCardholders.map(name => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2">
@@ -773,6 +813,9 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                       )}
                     </div>
                   </TableHead>
+                  <TableHead className="text-xs font-medium text-muted-foreground py-3">
+                    Cartão Adicional
+                  </TableHead>
                   <TableHead 
                     className="text-xs font-medium text-muted-foreground py-3 pr-5 cursor-pointer select-none hover:text-foreground transition-colors group w-[160px]"
                     onClick={() => handleSort('amount')}
@@ -834,6 +877,15 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                               </span>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell className="py-2">
+                          <input
+                            type="text"
+                            value={tx.cardholder_name || ''}
+                            onChange={(e) => handleCardholderNameChange(i, e.target.value)}
+                            placeholder="Principal"
+                            className="w-full text-xs border-transparent hover:border-border focus:border-primary bg-transparent focus:bg-background rounded px-2 py-1 outline-none transition-colors"
+                          />
                         </TableCell>
                         <TableCell className={`py-3 pr-5 text-right text-sm font-bold tabular-nums ${tx.type === 'credit' ? 'text-emerald-600' : 'text-rose-500'}`}>
                           {tx.type === 'credit' ? '+' : '−'}{formatCurrency(Math.abs(Number(tx.amount)), userCurrency, locale)}

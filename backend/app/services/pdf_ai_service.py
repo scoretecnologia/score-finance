@@ -57,9 +57,10 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
     3. A data (`date`) de **todas** as transações extraídas deve ser obrigatoriamente a **data de vencimento** da fatura, no formato YYYY-MM-DD (ou seja, todas as transações no JSON de retorno devem ter exatamente a mesma data correspondente ao vencimento da fatura).
     4. Cada transação na fatura possui uma data no formato DD/MM que indica o dia da compra. Preencha o campo `original_date` com essa data convertida para YYYY-MM-DD, usando o ano adequado (se a compra é em dezembro e a fatura vence em janeiro, o ano da compra é o ano anterior ao do vencimento; caso contrário, use o mesmo ano do vencimento).
     5. Ignore o cabeçalho, avisos, totais, propagandas, e saldo anterior/atual.
-    6. Retorne as transações formatadas estritamente de acordo com o JSON schema fornecido.
-    7. O valor (amount) deve ser float: use valor negativo para compras (despesas/débitos) e valor positivo para pagamentos de fatura ou estornos (créditos).
-    8. IMPORTANTE: Retorne as transações na **mesma ordem** em que aparecem na fatura.
+    6. Verifique se a tabela de lançamentos é dividida por cartões/portadores diferentes (ex: "THIAGO HENRIQUE DE (final 2315)", "JOSE PONTES DE AGUIAR (final 0016)"). Se houver, extraia o nome do portador e preencha o campo `cardholder_name` de todas as transações que pertencem a ele. Se não houver, pode omitir ou preencher com null.
+    7. Retorne as transações formatadas estritamente de acordo com o JSON schema fornecido.
+    8. O valor (amount) deve ser float: use valor negativo para compras (despesas/débitos) e valor positivo para pagamentos de fatura ou estornos (créditos).
+    9. IMPORTANTE: Retorne as transações na **mesma ordem** em que aparecem na fatura.
     
     Texto da fatura:
     {text}
@@ -99,7 +100,8 @@ def parse_pdf_invoice_with_gemini(pdf_content: bytes, api_key: str) -> list[dict
                                         "date": {"type": "string", "description": "Transaction date in YYYY-MM-DD format"},
                                         "original_date": {"type": "string", "description": "Original purchase date in YYYY-MM-DD format from the DD/MM shown on the invoice"},
                                         "description": {"type": "string", "description": "Description of the transaction"},
-                                        "amount": {"type": "number", "description": "Amount of the transaction. Use negative for expenses/debits and positive for payments/credits."}
+                                        "amount": {"type": "number", "description": "Amount of the transaction. Use negative for expenses/debits and positive for payments/credits."},
+                                        "cardholder_name": {"type": "string", "description": "The name of the additional cardholder (e.g. 'JOSE PONTES DE AGUIAR'), if the invoice groups transactions by card/person."}
                                     },
                                     "required": ["date", "original_date", "description", "amount"],
                                     "additionalProperties": False

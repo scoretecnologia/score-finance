@@ -68,6 +68,7 @@ async def get_transactions(
     chart_account_ids: Optional[list[uuid.UUID]] = None,
     accounting_mode: Optional[str] = None,
     account_type: Optional[str] = None,
+    cardholder_name: Optional[str] = None,
 ) -> tuple[list[Transaction], int]:
     # In "accrual" mode, bucket/order by effective_date so list filters
     # line up with the cash-flow view used by the dashboard and reports.
@@ -128,6 +129,8 @@ async def get_transactions(
         base_query = base_query.where(Transaction.transfer_pair_id.is_(None))
     if txn_type:
         base_query = base_query.where(Transaction.type == txn_type)
+    if cardholder_name:
+        base_query = base_query.where(Transaction.cardholder_name == cardholder_name)
     if from_date:
         base_query = base_query.where(date_col >= from_date)
     if to_date:
@@ -139,6 +142,7 @@ async def get_transactions(
                 Transaction.description.ilike(term),
                 Transaction.payee.ilike(term),
                 Transaction.notes.ilike(term),
+                Transaction.cardholder_name.ilike(term),
                 Payee.name.ilike(term),
             )
         )

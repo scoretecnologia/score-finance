@@ -12,6 +12,7 @@ import {
   Tag,
   Wallet,
   X,
+  CreditCard,
 } from 'lucide-react'
 import { ptBR, enUS } from 'date-fns/locale'
 
@@ -50,6 +51,8 @@ interface TransactionsFilterBarProps {
   onUncategorizedChange: (value: boolean) => void
   filterPayee: string
   onPayeeChange: (value: string) => void
+  filterCardholderName: string
+  onCardholderNameChange: (value: string) => void
   filterFrom: string
   filterTo: string
   onDateRangeChange: (from: string, to: string) => void
@@ -80,6 +83,8 @@ export function TransactionsFilterBar({
   onUncategorizedChange,
   filterPayee,
   onPayeeChange,
+  filterCardholderName,
+  onCardholderNameChange,
   filterFrom,
   filterTo,
   onDateRangeChange,
@@ -550,6 +555,26 @@ export function TransactionsFilterBar({
                   </DropdownMenuPortal>
                 </DropdownMenuSub>
 
+                {/* Cardholder submenu */}
+                <div className="px-2 py-1.5">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Cartão Adicional</span>
+                  </div>
+                  <Input
+                    placeholder="Nome do titular"
+                    value={filterCardholderName}
+                    onChange={(e) => onCardholderNameChange(e.target.value)}
+                    className="h-7 text-xs bg-muted/40"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setMenuOpen(false)
+                      }
+                    }}
+                  />
+                </div>
+                
+                <DropdownMenuSeparator />
+
                 {/* Date range submenu with presets */}
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger className="gap-2 text-[13px]">
@@ -647,6 +672,7 @@ export function TransactionsFilterBar({
           filterChartAccountIds.length > 0 ||
           filterUncategorized ||
           !!selectedPayee ||
+          !!filterCardholderName ||
           !!dateLabel) && (
           <div className="flex flex-wrap items-center gap-1 border-t border-border/60 px-2 py-1.5">
             {filterAccountIds.map((id) => {
@@ -696,6 +722,14 @@ export function TransactionsFilterBar({
                 label={t('payees.payee')}
                 value={selectedPayee.name}
                 onRemove={() => onPayeeChange('')}
+              />
+            )}
+            {filterCardholderName && (
+              <FilterChip
+                icon={<CreditCard size={12} />}
+                label="Cartão Adicional"
+                value={filterCardholderName}
+                onRemove={() => onCardholderNameChange('')}
               />
             )}
             {dateLabel && (

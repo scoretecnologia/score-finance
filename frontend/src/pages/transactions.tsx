@@ -7,6 +7,7 @@ import { transactions, categories as categoriesApi, categoryGroups, chartAccount
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import {
   Table,
   TableBody,
@@ -16,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Info, Paperclip, X } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Info, Paperclip, X, Trash2, CreditCard } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
@@ -62,11 +63,13 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   const [formResetKey, setFormResetKey] = useState(0)
   const [duplicateDraft, setDuplicateDraft] = useState<Partial<Transaction> | null>(null)
   const [filterPayee, setFilterPayee] = useState<string>(searchParams.get('payee_id') ?? '')
+  const [filterCardholderName, setFilterCardholderName] = useState<string>('')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [linkTransferDialogOpen, setLinkTransferDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const [bulkChartAccount, setBulkChartAccount] = useState<string>('')
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
   const highlightId = searchParams.get('highlight')
@@ -83,6 +86,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
     const nextCategory = searchParams.get('category_id')
     setFilterChartAccountIds(nextCategory ? [nextCategory] : [])
     setFilterUncategorized(false)
+    setFilterCardholderName('')
     setPage(1)
   }, [searchParams])
 
@@ -99,7 +103,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   useEffect(() => {
     setSelectedIds(new Set())
     setBulkChartAccount('')
-  }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery])
+  }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery])
 
   // Scroll to and flash a highlighted row after navigation (e.g. opened via
   // the command palette). Re-runs whenever highlightId or the current data
@@ -123,7 +127,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterFrom, filterTo, searchQuery, accountType],
+    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType],
     queryFn: () =>
       transactions.list({
         page,
@@ -131,6 +135,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
         chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
         payee_id: filterPayee || undefined,
+        cardholder_name: filterCardholderName || undefined,
         uncategorized: filterUncategorized ? true : undefined,
         from: filterFrom || undefined,
         to: filterTo || undefined,
@@ -263,6 +268,23 @@ export default function TransactionsPage({ accountType }: { accountType?: string
     },
   })
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map(id => transactions.delete(id)))
+      return { deleted: ids.length }
+    },
+    onSuccess: (result) => {
+      invalidateAfterTxMutation()
+      setSelectedIds(new Set())
+      setBulkDeleteDialogOpen(false)
+      toast.success(t('transactions.bulkDeleted', { count: result.deleted }))
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error))
+    },
+  })
+
+
   const linkTransferMutation = useMutation({
     mutationFn: (ids: [string, string]) => transactions.linkTransfer(ids),
     onSuccess: () => {
@@ -389,6 +411,8 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                     account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
                     chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
                     uncategorized: filterUncategorized ? true : undefined,
+                    payee_id: filterPayee || undefined,
+                    cardholder_name: filterCardholderName || undefined,
                     from: filterFrom || undefined,
                     to: filterTo || undefined,
                     q: searchQuery || undefined,
@@ -428,6 +452,8 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         onUncategorizedChange={(v) => { setFilterUncategorized(v); setPage(1) }}
         filterPayee={filterPayee}
         onPayeeChange={(v) => { setFilterPayee(v); setPage(1) }}
+        filterCardholderName={filterCardholderName}
+        onCardholderNameChange={(v) => { setFilterCardholderName(v); setPage(1) }}
         filterFrom={filterFrom}
         filterTo={filterTo}
         onDateRangeChange={(from, to) => { setFilterFrom(from); setFilterTo(to); setPage(1) }}
@@ -438,6 +464,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
           setFilterChartAccountIds([])
           setFilterUncategorized(false)
           setFilterPayee('')
+          setFilterCardholderName('')
           setSearchInput('')
           setSearchQuery('')
           setPage(1)
@@ -537,6 +564,15 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                                 : undefined}
                             >
                               {tx.installment_number}/{tx.total_installments}
+                            </span>
+                          )}
+                          {tx.cardholder_name && (
+                            <span
+                              className="inline-flex items-center text-[10px] font-bold tabular-nums text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.5 rounded-full"
+                              title="Cartão Adicional"
+                            >
+                              <CreditCard size={10} className="mr-1" />
+                              {tx.cardholder_name}
                             </span>
                           )}
                           {(tx.attachment_count ?? 0) > 0 && (
@@ -647,7 +683,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
       <div
         className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ease-out ${selectedIds.size > 0 ? 'translate-y-0' : 'translate-y-full'}`}
       >
-        <div className="mx-auto max-w-2xl px-3 md:px-4 pb-4 md:pb-6">
+        <div className="mx-auto max-w-4xl px-3 md:px-4 pb-4 md:pb-6">
           <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-card border border-border shadow-lg rounded-xl px-3 md:px-5 py-2.5 md:py-3">
             <span className="text-xs md:text-sm font-medium text-foreground whitespace-nowrap">
               {t('transactions.selected', { count: selectedIds.size })}
@@ -682,12 +718,16 @@ export default function TransactionsPage({ accountType }: { accountType?: string
               <ArrowLeftRight size={14} className="mr-1" />
               {t('transactions.linkAsTransfer')}
             </Button>
-            <button
-              onClick={() => { setSelectedIds(new Set()); setBulkChartAccount('') }}
-              className="text-muted-foreground hover:text-foreground p-1 shrink-0"
+            <Button
+              size="icon"
+              variant="destructive"
+              disabled={bulkDeleteMutation.isPending}
+              onClick={() => setBulkDeleteDialogOpen(true)}
+              className="shrink-0 h-8 w-8"
+              title={t('common.delete')}
             >
-              <X size={16} />
-            </button>
+              <Trash2 size={14} />
+            </Button>
           </div>
         </div>
       </div>
@@ -737,6 +777,28 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         error={createMutation.error || updateMutation.error ? extractApiError(createMutation.error || updateMutation.error) : null}
         isSynced={editingTx?.source === 'sync'}
       />
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('transactions.confirmBulkDelete')}</DialogTitle>
+            <DialogDescription>
+              {t('transactions.confirmBulkDeleteDesc', { count: selectedIds.size })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button variant="outline" onClick={() => setBulkDeleteDialogOpen(false)} disabled={bulkDeleteMutation.isPending}>
+              {t('common.cancel')}
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedIds))}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? t('common.loading') : t('common.delete')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

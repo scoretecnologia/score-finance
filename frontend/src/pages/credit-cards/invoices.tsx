@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw } from 'lucide-react'
-import { invoicesApi } from '@/lib/api'
+import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Trash2, X } from 'lucide-react'
+import { invoicesApi, transactions as transactionsApi } from '@/lib/api'
+import { toast } from 'sonner'
 import { formatCurrency } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +23,8 @@ export default function CreditCardInvoices() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sortField, setSortField] = useState<'description' | 'amount' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set())
+  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const handleRefresh = useCallback(() => {
@@ -48,7 +51,26 @@ export default function CreditCardInvoices() {
     enabled: !!selectedInvoiceId,
   })
 
-  const isRefreshing = isFetching || isFetchingTransactions
+  })
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      await Promise.all(ids.map(id => transactionsApi.delete(id)))
+      return { deleted: ids.length }
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['invoice-transactions', selectedInvoiceId] })
+      queryClient.invalidateQueries({ queryKey: ['invoices'] })
+      setSelectedTxIds(new Set())
+      setBulkDeleteDialogOpen(false)
+      toast.success(`${result.deleted} transação(ões) excluída(s)`)
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.detail || error.message || 'Erro ao excluir transações')
+    },
+  })
+
+  const isRefreshing = isFetching || isFetchingTransactions || bulkDeleteMutation.isPending
 
   const handleSort = (field: 'description' | 'amount') => {
     if (sortField === field) {
@@ -269,7 +291,22 @@ export default function CreditCardInvoices() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 shadow-sm">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="pl-6 w-24">Data</TableHead>
+                    <TableHead className="w-10 pl-6 pr-0">
+                      <input
+                        type="checkbox"
+                        checked={sortedTransactions.length > 0 && selectedTxIds.size === sortedTransactions.length}
+                        ref={(el) => { if (el) el.indeterminate = selectedTxIds.size > 0 && selectedTxIds.size < sortedTransactions.length }}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTxIds(new Set(sortedTransactions.map(t => t.id)))
+                          } else {
+                            setSelectedTxIds(new Set())
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                      />
+                    </TableHead>
+                    <TableHead className="pl-4 w-24">Data</TableHead>
                     <TableHead 
                       className="cursor-pointer select-none hover:text-foreground transition-colors group w-1/2"
                       onClick={() => handleSort('description')}
@@ -302,13 +339,35 @@ export default function CreditCardInvoices() {
                   {sortedTransactions.map((txn) => {
                     const isPayment = txn.type === 'credit' || (selectedInvoice && txn.account_id !== selectedInvoice.account_id)
                     return (
-                    <TableRow key={txn.id} className="hover:bg-muted/30">
-                      <TableCell className="pl-6 text-muted-foreground whitespace-nowrap">
+                    <TableRow key={txn.id} className={`hover:bg-muted/30 ${selectedTxIds.has(txn.id) ? 'bg-primary/5' : ''}`}>
+                      <TableCell className="pl-6 pr-0 w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedTxIds.has(txn.id)}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedTxIds)
+                            if (e.target.checked) newSet.add(txn.id)
+                            else newSet.delete(txn.id)
+                            setSelectedTxIds(newSet)
+                          }}
+                          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                        />
+                      </TableCell>
+                      <TableCell className="pl-4 text-muted-foreground whitespace-nowrap">
                         {new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell className="font-medium text-foreground max-w-0">
                         <div className="flex items-center gap-2 truncate" title={txn.description}>
                           <span className="truncate">{txn.description}</span>
+                          {txn.cardholder_name && (
+                            <span
+                              className="inline-flex items-center text-[10px] font-bold tabular-nums text-indigo-700 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-500/20 border border-indigo-200 dark:border-indigo-500/30 px-1.5 py-0.5 rounded-full"
+                              title="Cartão Adicional"
+                            >
+                              <CreditCard size={10} className="mr-1" />
+                              {txn.cardholder_name}
+                            </span>
+                          )}
                           {isPayment ? (
                             <Badge variant="outline" className="text-[10px] uppercase tracking-wider shrink-0 text-emerald-600 border-emerald-200 bg-emerald-500/10">Pagamento</Badge>
                           ) : (
@@ -327,7 +386,7 @@ export default function CreditCardInvoices() {
             )}
           </div>
           
-          <div className="p-4 border-t border-border/50 bg-muted/20 flex items-center justify-between text-sm text-muted-foreground">
+          <div className="relative p-4 border-t border-border/50 bg-muted/20 flex items-center justify-between text-sm text-muted-foreground">
             <span>{filteredTransactions.length} de {transactions?.length || 0} lançamentos</span>
             {selectedInvoice && (
               <div className="flex items-center gap-4">
@@ -341,6 +400,51 @@ export default function CreditCardInvoices() {
                 </span>
               </div>
             )}
+
+            {/* Bulk Action Overlay */}
+            {selectedTxIds.size > 0 && (
+              <div className="absolute inset-0 bg-card border-t border-border flex items-center justify-between px-4 z-10">
+                <span className="text-sm font-medium text-foreground">
+                  {selectedTxIds.size} selecionado(s)
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setBulkDeleteDialogOpen(true)}
+                    className="inline-flex items-center justify-center rounded-md bg-destructive w-8 h-8 text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                    title="Excluir"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir lançamentos?</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja excluir {selectedTxIds.size} lançamento(s)? Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <button
+              onClick={() => setBulkDeleteDialogOpen(false)}
+              disabled={bulkDeleteMutation.isPending}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => bulkDeleteMutation.mutate(Array.from(selectedTxIds))}
+              disabled={bulkDeleteMutation.isPending}
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90 h-9 px-4 py-2"
+            >
+              {bulkDeleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+            </button>
           </div>
         </DialogContent>
       </Dialog>

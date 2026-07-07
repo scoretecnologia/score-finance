@@ -326,6 +326,7 @@ export const transactions = {
     uncategorized?: boolean
     type?: string
     account_type?: string
+    cardholder_name?: string
     from?: string
     to?: string
     q?: string

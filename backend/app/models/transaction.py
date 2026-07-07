@@ -45,6 +45,7 @@ class Transaction(Base):
     status: Mapped[str] = mapped_column(String(10), default="posted")  # posted, pending
     payee: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     payee_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("payees.id", ondelete="SET NULL"), nullable=True)
+    cardholder_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
     raw_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     import_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("import_logs.id"), nullable=True)
