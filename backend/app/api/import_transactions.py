@@ -1,13 +1,13 @@
 import json
 import logging
-from typing import Optional
+from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/transactions", tags=["import"])
 async def extract_headers(
     file: UploadFile = File(...),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     content = await file.read()
     filename = file.filename or ""
@@ -45,7 +45,7 @@ async def preview_import(
     outflow_column: Optional[str] = Form(None),
     column_mapping: Optional[str] = Form(None),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
     db: AsyncSession = Depends(get_async_session),
 ):
     content = await file.read()
@@ -162,7 +162,7 @@ async def import_transactions(
     data: TransactionImportRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     # Verify account belongs to user
     account = await account_service.get_account(session, data.account_id, company.id)
@@ -182,7 +182,7 @@ async def import_transactions_stream(
     data: TransactionImportRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     """Import transactions with real-time progress via Server-Sent Events."""
     # Verify account belongs to user
@@ -217,7 +217,7 @@ async def check_import_duplicates(
     data: TransactionImportRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     from sqlalchemy import select
     from app.models.transaction import Transaction
@@ -260,7 +260,7 @@ async def parse_pdf_invoice(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     from sqlalchemy import select
     from app.models.company_setting import CompanySetting

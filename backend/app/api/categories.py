@@ -1,10 +1,11 @@
 import uuid
 
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -28,7 +29,7 @@ async def create_category(
     data: CategoryCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     return await category_service.create_category(session, company.id, data)
 
@@ -39,7 +40,7 @@ async def update_category(
     data: CategoryUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     category = await category_service.update_category(session, category_id, company.id, data)
     if not category:
@@ -52,7 +53,7 @@ async def delete_category(
     category_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     deleted = await category_service.delete_category(session, category_id, company.id)
     if not deleted:

@@ -1,9 +1,10 @@
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.core.database import get_async_session
 from app.models.company import Company
 from app.models.company_setting import CompanySetting
@@ -51,7 +52,7 @@ async def update_ai_settings(
     setting_in: CompanySettingUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     result = await session.execute(
         select(CompanySetting).where(

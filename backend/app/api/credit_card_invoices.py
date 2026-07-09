@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Annotated
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,7 @@ from app.models.company import Company
 from app.models.category import Category
 from app.models.credit_card_invoice import CreditCardInvoice
 from app.models.user import User
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.schemas.credit_card_invoice import CreditCardInvoice as CreditCardInvoiceSchema
 
 router = APIRouter()
@@ -101,7 +101,7 @@ async def recalculate_invoice(
     invoice_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     from app.services.credit_card_invoice_service import recalculate_invoice_paid_amount
     from fastapi import HTTPException, status as http_status

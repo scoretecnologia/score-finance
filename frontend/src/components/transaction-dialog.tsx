@@ -74,6 +74,7 @@ export function TransactionDialog({
   isSynced = false,
   duplicateDraft = null,
   formResetKey = 0,
+  readOnly,
 }: {
   open: boolean
   onClose: () => void
@@ -88,6 +89,7 @@ export function TransactionDialog({
   isSynced?: boolean
   duplicateDraft?: Partial<Transaction> | null
   formResetKey?: number
+  readOnly?: boolean
 }) {
   const { t } = useTranslation()
   const [preview, setPreview] = useState<AttachmentPreview | null>(null)
@@ -158,6 +160,7 @@ export function TransactionDialog({
               onPreviewChange={handlePreviewChange}
               activePreviewId={preview?.attachmentId ?? null}
               hasPreview={hasPreview}
+              readOnly={readOnly}
             />
           </div>
 
@@ -272,6 +275,7 @@ function TransactionForm({
   onPreviewChange,
   activePreviewId,
   hasPreview,
+  readOnly,
 }: {
   transaction: Transaction | null
   duplicateDraft: Partial<Transaction> | null
@@ -287,6 +291,7 @@ function TransactionForm({
   onPreviewChange: (preview: AttachmentPreview | null) => void
   activePreviewId: string | null
   hasPreview: boolean
+  readOnly?: boolean
 }) {
   const { t, i18n } = useTranslation()
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
@@ -466,7 +471,7 @@ function TransactionForm({
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           required
-          disabled={isSynced}
+          disabled={isSynced || readOnly}
         />
         {isSynced && transaction?.payee && transaction.payee !== transaction.description && (
           <p className="text-xs text-muted-foreground">{transaction.payee}</p>
@@ -481,7 +486,7 @@ function TransactionForm({
             value={amount}
             onChange={(e) => handleAmountChange(e.target.value)}
             required
-            disabled={isSynced}
+            disabled={isSynced || readOnly}
           />
         </div>
         <div className="space-y-2">
@@ -489,7 +494,7 @@ function TransactionForm({
           <DatePickerInput
             value={date}
             onChange={setDate}
-            disabled={isSynced}
+            disabled={isSynced || readOnly}
             className="w-full justify-start"
           />
         </div>
@@ -501,7 +506,7 @@ function TransactionForm({
             className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={type}
             onChange={(e) => setType(e.target.value as 'debit' | 'credit')}
-            disabled={isSynced}
+            disabled={isSynced || readOnly}
           >
             <option value="debit">{t('transactions.expense')}</option>
             <option value="credit">{t('transactions.income')}</option>
@@ -512,7 +517,7 @@ function TransactionForm({
           <ChartAccountSelect
             value={chartAccountId}
             onChange={(e) => setChartAccountId(e.target.value)}
-            disabled={!!transaction?.transfer_pair_id}
+            disabled={!!transaction?.transfer_pair_id || readOnly}
           />
         </div>
       </div>
@@ -520,9 +525,10 @@ function TransactionForm({
         <div className="space-y-2">
           <Label>{t('transactions.costCenter', 'Centro de Custo')}</Label>
           <select
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={costCenterId}
             onChange={(e) => setCostCenterId(e.target.value)}
+            disabled={readOnly}
           >
             <option value="">{t('transactions.noCostCenter', 'Sem centro de custo')}</option>
             {(costCentersList ?? []).filter(cc => cc.is_active || cc.id === costCenterId).map((cc) => (
@@ -533,9 +539,10 @@ function TransactionForm({
         <div className="space-y-2">
           <Label>{t('payees.payee')}</Label>
           <select
-            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+            className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
             value={payeeId}
             onChange={(e) => setPayeeId(e.target.value)}
+            disabled={readOnly}
           >
             <option value="">{t('payees.noPayee')}</option>
             {(payeesList ?? []).map((p) => (
@@ -550,10 +557,11 @@ function TransactionForm({
           <div className="space-y-2">
             <Label>{t('transactions.account')}</Label>
             <select
-              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+              className="w-full border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
               value={accountId}
               onChange={(e) => setAccountId(e.target.value)}
               required
+              disabled={readOnly}
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>{getAccountName(acc)}</option>
@@ -581,10 +589,11 @@ function TransactionForm({
             <div className="pt-1">
               <Label>Fatura do Cartão</Label>
               <select
-                className="w-full mt-1 border border-border rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
+                className="w-full mt-1 border border-border rounded-md px-3 py-2 text-sm bg-background disabled:opacity-50 focus:outline-none focus-visible:ring-ring/30 focus-visible:ring-[2px]"
                 value={invoiceId}
                 onChange={(e) => setInvoiceId(e.target.value)}
                 required
+                disabled={readOnly}
               >
                 <option value="">Selecione uma fatura</option>
                 {(invoicesList ?? []).map((inv) => (
@@ -606,11 +615,12 @@ function TransactionForm({
       <div className="space-y-2">
         <Label>{t('transactions.notes')} <span className="text-muted-foreground font-normal text-xs">({t('transactions.notesHint')})</span></Label>
         <textarea
-          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background resize-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
+          className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background resize-none disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-0"
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder={t('transactions.notesPlaceholder')}
+          disabled={readOnly}
         />
       </div>
 
@@ -681,49 +691,51 @@ function TransactionForm({
         'shrink-0 border-t pt-4 mt-2',
         onDelete ? 'flex justify-between sm:justify-between' : ''
       )}>
-        {onDelete && (
+        {onDelete && !readOnly && (
           <Button type="button" variant="destructive" onClick={onDelete} disabled={loading}>
             {t('common.delete')}
           </Button>
         )}
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={onCancel}>
-            {t('common.cancel')}
+            {readOnly ? t('common.close') : t('common.cancel')}
           </Button>
-          {showSaveVariants ? (
-            <div className="inline-flex">
-              <Button
-                type="submit"
-                disabled={loading}
-                className="rounded-r-none"
-              >
+          {!readOnly && (
+            showSaveVariants ? (
+              <div className="inline-flex">
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-r-none"
+                >
+                  {loading ? t('common.loading') : t('common.save')}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      disabled={loading}
+                      aria-label={t('transactions.moreSaveOptions')}
+                      className="rounded-l-none border-l border-l-primary-foreground/20 px-2 has-[>svg]:px-2"
+                    >
+                      <ChevronDown />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => triggerSubmit('saveAndNew')}>
+                      {t('transactions.saveAndNew')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => triggerSubmit('saveAndDuplicate')}>
+                      {t('transactions.saveAndDuplicate')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : (
+              <Button type="submit" disabled={loading}>
                 {loading ? t('common.loading') : t('common.save')}
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    disabled={loading}
-                    aria-label={t('transactions.moreSaveOptions')}
-                    className="rounded-l-none border-l border-l-primary-foreground/20 px-2 has-[>svg]:px-2"
-                  >
-                    <ChevronDown />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onSelect={() => triggerSubmit('saveAndNew')}>
-                    {t('transactions.saveAndNew')}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => triggerSubmit('saveAndDuplicate')}>
-                    {t('transactions.saveAndDuplicate')}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ) : (
-            <Button type="submit" disabled={loading}>
-              {loading ? t('common.loading') : t('common.save')}
-            </Button>
+            )
           )}
         </div>
       </DialogFooter>

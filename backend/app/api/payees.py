@@ -1,12 +1,12 @@
 import uuid
 from datetime import date
-from typing import Optional
+from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -68,7 +68,7 @@ async def create_payee(
     data: PayeeCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         return await payee_service.create_payee(session, company.id, data)
@@ -81,7 +81,7 @@ async def import_payees(
     payload: PayeeBulkImportRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         imported, skipped = await payee_service.bulk_import_payees(
@@ -103,7 +103,7 @@ async def update_payee(
     data: PayeeUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         payee = await payee_service.update_payee(session, payee_id, company.id, data)
@@ -119,7 +119,7 @@ async def delete_payee(
     payee_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     deleted = await payee_service.delete_payee(session, payee_id, company.id)
     if not deleted:
@@ -131,7 +131,7 @@ async def merge_payees(
     data: PayeeMergeRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         reassigned = await payee_service.merge_payees(session, company.id, data.target_id, data.source_ids)

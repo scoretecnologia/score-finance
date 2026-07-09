@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/page-header'
 import { ChartAccountSelect } from '@/components/chart-account-select'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { useCompany } from '@/contexts/company-context'
 
 function CategoryCombobox({ 
   value, 
@@ -179,6 +180,8 @@ function actionSummary(actions: RuleAction[], chartAccounts: ChartAccount[], pay
 
 export default function RulesPage() {
   const { t } = useTranslation()
+  const { currentCompany } = useCompany()
+  const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
@@ -335,28 +338,32 @@ export default function RulesPage() {
                 <Download size={12} />
                 <span className="hidden sm:inline">{t('rules.downloadTemplate')}</span>
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8"
-                onClick={() => setImportDialogOpen(true)}
-              >
-                <Upload size={12} />
-                <span className="hidden sm:inline">{t('rules.importXlsx')}</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8"
-                onClick={() => applyAllMutation.mutate()}
-                disabled={applyAllMutation.isPending}
-              >
-                <RefreshCw size={12} />
-                <span className="hidden sm:inline">{t('rules.reapplyAll')}</span>
-              </Button>
-              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setDialogOpen(true) }}>
-                <Plus size={13} /> <span className="hidden sm:inline">{t('rules.add')}</span>
-              </Button>
+              {canManage && (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8"
+                    onClick={() => setImportDialogOpen(true)}
+                  >
+                    <Upload size={12} />
+                    <span className="hidden sm:inline">{t('rules.importXlsx')}</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8"
+                    onClick={() => applyAllMutation.mutate()}
+                    disabled={applyAllMutation.isPending}
+                  >
+                    <RefreshCw size={12} />
+                    <span className="hidden sm:inline">{t('rules.reapplyAll')}</span>
+                  </Button>
+                  <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setDialogOpen(true) }}>
+                    <Plus size={13} /> <span className="hidden sm:inline">{t('rules.add')}</span>
+                  </Button>
+                </>
+              )}
             </div>
           }
         />
@@ -388,8 +395,8 @@ export default function RulesPage() {
             {sortedRules.map((rule) => (
               <div
                 key={rule.id}
-                className="px-4 sm:px-5 py-3 hover:bg-muted transition-colors cursor-pointer"
-                onClick={() => { setEditing(rule); setDialogOpen(true) }}
+                className={`px-4 sm:px-5 py-3 hover:bg-muted transition-colors ${canManage ? 'cursor-pointer' : ''}`}
+                onClick={() => { if (canManage) { setEditing(rule); setDialogOpen(true) } }}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
@@ -411,15 +418,17 @@ export default function RulesPage() {
                       {actionSummary(rule.actions, chartAccounts, payees, costCenters, t)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(rule) }}
-                      disabled={deleteMutation.isPending}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(rule) }}
+                        disabled={deleteMutation.isPending}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

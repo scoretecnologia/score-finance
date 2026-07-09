@@ -1,10 +1,11 @@
 import uuid
 
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -32,7 +33,7 @@ async def create_recurring_transaction(
     data: RecurringTransactionCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         return await recurring_transaction_service.create_recurring_transaction(session, company.id, data)
@@ -46,7 +47,7 @@ async def update_recurring_transaction(
     data: RecurringTransactionUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         recurring = await recurring_transaction_service.update_recurring_transaction(
@@ -64,7 +65,7 @@ async def delete_recurring_transaction(
     recurring_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     deleted = await recurring_transaction_service.delete_recurring_transaction(session, recurring_id, company.id)
     if not deleted:
@@ -75,7 +76,7 @@ async def delete_recurring_transaction(
 async def generate_recurring_transactions(
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     count = await recurring_transaction_service.generate_pending(session, company.id)
     return {"generated": count}

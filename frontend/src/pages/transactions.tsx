@@ -27,6 +27,7 @@ import { LinkTransferDialog } from '@/components/link-transfer-dialog'
 import { TransactionsFilterBar } from '@/components/transactions-filter-bar'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
+import { useCompany } from '@/contexts/company-context'
 import { ChartAccountSelect } from '@/components/chart-account-select'
 
 function formatCurrency(value: number, _currency?: string, _locale?: string) {
@@ -45,6 +46,8 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const { mask } = usePrivacyMode()
   const { user } = useAuth()
+  const { currentCompany } = useCompany()
+  const canManageTransactions = currentCompany?.role !== 'viewer'
   const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
@@ -429,13 +432,17 @@ export default function TransactionsPage({ accountType }: { accountType?: string
               <Download size={16} className="mr-1.5" />
               {exporting ? t('transactions.exporting') : t('transactions.exportCsv')}
             </Button>
-            <Button variant="outline" onClick={() => setTransferDialogOpen(true)}>
-              <ArrowLeftRight size={16} className="mr-1.5" />
-              {t('transactions.transfer')}
-            </Button>
-            <Button onClick={() => { setEditingTx(null); setDialogOpen(true) }}>
-              + {t('transactions.addManual')}
-            </Button>
+            {canManageTransactions && (
+              <>
+                <Button variant="outline" onClick={() => setTransferDialogOpen(true)}>
+                  <ArrowLeftRight size={16} className="mr-1.5" />
+                  {t('transactions.transfer')}
+                </Button>
+                <Button onClick={() => { setEditingTx(null); setDialogOpen(true) }}>
+                  + {t('transactions.addManual')}
+                </Button>
+              </>
+            )}
           </div>
         }
       />
@@ -505,15 +512,17 @@ export default function TransactionsPage({ accountType }: { accountType?: string
           <Table>
             <TableHeader>
               <TableRow className="border-b border-border hover:bg-transparent">
-                <TableHead className="w-[40px] py-3 pl-4 pr-0">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    ref={(el) => { if (el) el.indeterminate = someSelected }}
-                    onChange={toggleSelectAll}
-                    className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-                  />
-                </TableHead>
+                {canManageTransactions && (
+                  <TableHead className="w-[40px] py-3 pl-4 pr-0">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      ref={(el) => { if (el) el.indeterminate = someSelected }}
+                      onChange={toggleSelectAll}
+                      className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                    />
+                  </TableHead>
+                )}
                 <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[30%]">{t('transactions.description')}</TableHead>
                 <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.category')}</TableHead>
                 <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.notes')}</TableHead>
@@ -529,15 +538,17 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                   className={`cursor-pointer hover:bg-muted border-b border-border last:border-0 ${selectedIds.has(tx.id) ? 'bg-primary/5' : ''}`}
                   onClick={() => { setEditingTx(tx); setDialogOpen(true) }}
                 >
-                  <TableCell className="py-2.5 pl-4 pr-0 w-[40px]">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(tx.id)}
-                      onChange={() => toggleSelect(tx.id)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-                    />
-                  </TableCell>
+                  {canManageTransactions && (
+                    <TableCell className="py-2.5 pl-4 pr-0 w-[40px]">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(tx.id)}
+                        onChange={() => toggleSelect(tx.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="py-2.5 pl-2 max-w-0">
                     <div className="flex items-center gap-2 md:gap-3">
                       <CategoryIcon icon={tx.chart_account?.icon ?? tx.category?.icon} color={tx.chart_account?.color ?? tx.category?.color} size="lg" />
@@ -680,9 +691,10 @@ export default function TransactionsPage({ accountType }: { accountType?: string
       )}
 
       {/* Bulk Action Bar */}
-      <div
-        className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ease-out ${selectedIds.size > 0 ? 'translate-y-0' : 'translate-y-full'}`}
-      >
+      {canManageTransactions && (
+        <div
+          className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-200 ease-out ${selectedIds.size > 0 ? 'translate-y-0' : 'translate-y-full'}`}
+        >
         <div className="mx-auto max-w-4xl px-3 md:px-4 pb-4 md:pb-6">
           <div className="flex flex-wrap items-center gap-2 md:gap-3 bg-card border border-border shadow-lg rounded-xl px-3 md:px-5 py-2.5 md:py-3">
             <span className="text-xs md:text-sm font-medium text-foreground whitespace-nowrap">
@@ -731,6 +743,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
           </div>
         </div>
       </div>
+      )}
 
       {/* Link Transfer Dialog */}
       <LinkTransferDialog
@@ -776,6 +789,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         loading={createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || unlinkTransferMutation.isPending}
         error={createMutation.error || updateMutation.error ? extractApiError(createMutation.error || updateMutation.error) : null}
         isSynced={editingTx?.source === 'sync'}
+        readOnly={!canManageTransactions}
       />
       <Dialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
         <DialogContent>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Users, UserPlus, Trash2, Shield, Crown, Eye, User } from 'lucide-react'
 import { companies as companiesApi } from '@/lib/api'
@@ -43,6 +44,8 @@ export default function CompanyMembersPage() {
   const [isInviting, setIsInviting] = useState(false)
   const [showCreateFields, setShowCreateFields] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<CompanyMember | null>(null)
+
+  const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['company-members', currentCompany?.id],
@@ -91,6 +94,7 @@ export default function CompanyMembersPage() {
   }
 
   if (!currentCompany) return null
+  if (currentCompany.role === 'viewer') return <Navigate to="/" replace />
 
   const acceptedMembers = members.filter(m => m.accepted_at)
   const pendingMembers  = members.filter(m => !m.accepted_at)
@@ -109,86 +113,88 @@ export default function CompanyMembersPage() {
       </div>
 
       {/* Invite Form */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
-        <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
-          <UserPlus className="w-4 h-4 text-primary" />
-          Convidar novo membro
-        </h2>
-        <form onSubmit={handleInvite} className="space-y-4">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <input
-              id="invite-email"
-              type="email"
-              placeholder="email@empresa.com"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
-            />
-            <select
-              id="invite-role"
-              value={role}
-              onChange={e => setRole(e.target.value)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
-            >
-              <option value="admin">Administrador</option>
-              <option value="member">Membro</option>
-              <option value="viewer">Visualizador</option>
-            </select>
-            <button
-              type="submit"
-              id="invite-submit"
-              disabled={isInviting || !email.trim()}
-              className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] whitespace-nowrap"
-            >
-              {isInviting ? (
-                <div className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4" />
-                  {showCreateFields ? 'Criar e Adicionar' : 'Convidar'}
-                </>
-              )}
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowCreateFields(!showCreateFields)}
-              className="text-xs text-primary hover:underline"
-            >
-              {showCreateFields ? '- Ocultar campos de criação' : '+ Criar conta para este e-mail agora'}
-            </button>
-          </div>
-
-          {showCreateFields && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Nome Completo</label>
-                <input
-                  type="text"
-                  placeholder="Nome do usuário"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Senha Inicial</label>
-                <input
-                  type="password"
-                  placeholder="Defina uma senha"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required={showCreateFields}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
-                />
-              </div>
+      {canManage && (
+        <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <h2 className="text-sm font-semibold mb-4 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-primary" />
+            Convidar novo membro
+          </h2>
+          <form onSubmit={handleInvite} className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                id="invite-email"
+                type="email"
+                placeholder="email@empresa.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
+              />
+              <select
+                id="invite-role"
+                value={role}
+                onChange={e => setRole(e.target.value)}
+                className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
+              >
+                <option value="admin">Administrador</option>
+                <option value="member">Membro</option>
+                <option value="viewer">Visualizador</option>
+              </select>
+              <button
+                type="submit"
+                id="invite-submit"
+                disabled={isInviting || !email.trim()}
+                className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] whitespace-nowrap"
+              >
+                {isInviting ? (
+                  <div className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" />
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    {showCreateFields ? 'Criar e Adicionar' : 'Convidar'}
+                  </>
+                )}
+              </button>
             </div>
-          )}
-        </form>
-      </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreateFields(!showCreateFields)}
+                className="text-xs text-primary hover:underline"
+              >
+                {showCreateFields ? '- Ocultar campos de criação' : '+ Criar conta para este e-mail agora'}
+              </button>
+            </div>
+
+            {showCreateFields && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Nome Completo</label>
+                  <input
+                    type="text"
+                    placeholder="Nome do usuário"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1">Senha Inicial</label>
+                  <input
+                    type="password"
+                    placeholder="Defina uma senha"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required={showCreateFields}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-shadow"
+                  />
+                </div>
+              </div>
+            )}
+          </form>
+        </div>
+      )}
 
       {/* Members List */}
       <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
@@ -213,6 +219,7 @@ export default function CompanyMembersPage() {
               <MemberRow
                 key={member.id}
                 member={member}
+                canManage={canManage}
                 onChangeRole={(newRole) => updateRoleMutation.mutate({ memberId: member.id, newRole })}
                 onRemove={() => setMemberToDelete(member)}
               />
@@ -236,6 +243,7 @@ export default function CompanyMembersPage() {
                 key={member.id}
                 member={member}
                 pending
+                canManage={canManage}
                 onChangeRole={(newRole) => updateRoleMutation.mutate({ memberId: member.id, newRole })}
                 onRemove={() => setMemberToDelete(member)}
               />
@@ -279,11 +287,13 @@ export default function CompanyMembersPage() {
 function MemberRow({
   member,
   pending = false,
+  canManage,
   onChangeRole,
   onRemove,
 }: {
   member: CompanyMember
   pending?: boolean
+  canManage: boolean
   onChangeRole: (role: string) => void
   onRemove: () => void
 }) {
@@ -309,8 +319,8 @@ function MemberRow({
       </div>
 
       {/* Role badge / selector */}
-      {isOwner ? (
-        <RoleBadge role="owner" />
+      {isOwner || !canManage ? (
+        <RoleBadge role={member.role} />
       ) : (
         <select
           value={member.role}
@@ -324,7 +334,7 @@ function MemberRow({
       )}
 
       {/* Remove button */}
-      {!isOwner && (
+      {!isOwner && canManage && (
         <button
           onClick={onRemove}
           className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"

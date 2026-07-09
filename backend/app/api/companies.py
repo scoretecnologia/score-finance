@@ -98,8 +98,8 @@ def _make_slug(name: str, company_id: uuid.UUID) -> str:
 @router.post("", response_model=CompanyOut, status_code=status.HTTP_201_CREATED)
 async def create_company(
     body: CompanyCreate,
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ) -> CompanyOut:
     """Cria uma nova empresa. O usuário que cria vira owner automaticamente."""
     company = Company(
@@ -135,8 +135,8 @@ async def create_company(
 
 @router.get("/me", response_model=list[CompanyOut])
 async def list_my_companies(
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ) -> list[Company]:
     if current_user.is_superuser:
         result = await db.execute(select(Company).where(Company.is_active == True))
@@ -182,9 +182,9 @@ async def list_my_companies(
 
 @router.get("/{company_id}", response_model=CompanyOut)
 async def get_company(
-    company: Annotated[Company, Depends(get_current_company)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(current_active_user)],
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
 ) -> CompanyOut:
     """Detalhes de uma empresa (requer ser membro)."""
     result = await db.execute(
@@ -210,9 +210,9 @@ async def get_company(
 @router.patch("/{company_id}", response_model=CompanyOut)
 async def update_company(
     body: CompanyUpdate,
-    company: Annotated[Company, Depends(require_role("owner", "admin"))],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    current_user: Annotated[User, Depends(current_active_user)],
+    company: Company = Depends(require_role("owner", "admin")),
+    db: AsyncSession = Depends(get_async_session),
+    current_user: User = Depends(current_active_user),
 ) -> CompanyOut:
     """Edita nome ou CNPJ da empresa (requer owner ou admin)."""
     if body.name is not None:
@@ -244,8 +244,8 @@ async def update_company(
 
 @router.get("/{company_id}/members", response_model=list[MemberOut])
 async def list_members(
-    company: Annotated[Company, Depends(get_current_company)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    company: Company = Depends(get_current_company),
+    db: AsyncSession = Depends(get_async_session),
 ) -> list[CompanyMember]:
     """Lista todos os membros da empresa."""
     result = await db.execute(
@@ -272,10 +272,10 @@ async def list_members(
 @router.post("/{company_id}/members", response_model=MemberOut, status_code=status.HTTP_201_CREATED)
 async def invite_member(
     body: InviteMember,
-    company: Annotated[Company, Depends(require_role("owner", "admin"))],
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
-    user_manager: Annotated[UserManager, Depends(get_user_manager)],
+    company: Company = Depends(require_role("owner", "admin")),
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
+    user_manager: UserManager = Depends(get_user_manager),
 ) -> MemberOut:
     """
     Convida um usuário por e-mail.
@@ -351,9 +351,9 @@ async def invite_member(
 async def update_member_role(
     member_id: uuid.UUID,
     body: UpdateMemberRole,
-    company: Annotated[Company, Depends(require_role("owner", "admin"))],
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    company: Company = Depends(require_role("owner", "admin")),
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ) -> CompanyMember:
     """Altera o papel de um membro (owner/admin apenas)."""
     result = await db.execute(
@@ -388,9 +388,9 @@ async def update_member_role(
 @router.delete("/{company_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_member(
     member_id: uuid.UUID,
-    company: Annotated[Company, Depends(require_role("owner", "admin"))],
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    company: Company = Depends(require_role("owner", "admin")),
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ) -> None:
     """Remove um membro da empresa. O owner não pode ser removido."""
     result = await db.execute(
@@ -411,8 +411,8 @@ async def remove_member(
 @router.post("/invites/accept", response_model=MemberOut)
 async def accept_invite(
     company_id: uuid.UUID,
-    current_user: Annotated[User, Depends(current_active_user)],
-    db: Annotated[AsyncSession, Depends(get_async_session)],
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_session),
 ) -> CompanyMember:
     """Aceita um convite pendente para uma empresa."""
     result = await db.execute(

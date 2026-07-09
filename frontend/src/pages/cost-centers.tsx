@@ -26,9 +26,12 @@ import {
 import { PageHeader } from '@/components/page-header'
 import { Search } from 'lucide-react'
 import type { CostCenter } from '@/types'
+import { useCompany } from '@/contexts/company-context'
 
 export default function CostCentersPage() {
   const { t } = useTranslation()
+  const { currentCompany } = useCompany()
+  const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -101,9 +104,11 @@ export default function CostCentersPage() {
         section={t('transactions.section')}
         title={t('costCenters.title')}
         action={
-          <Button onClick={openCreate}>
-            + {t('costCenters.add')}
-          </Button>
+          canManage && (
+            <Button onClick={openCreate}>
+              + {t('costCenters.add')}
+            </Button>
+          )
         }
       />
 
@@ -136,7 +141,7 @@ export default function CostCentersPage() {
                 <TableHead className="text-xs font-medium text-muted-foreground py-3 w-[80px]">{t('costCenters.code')}</TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground py-3">{t('costCenters.name')}</TableHead>
                 <TableHead className="text-xs font-medium text-muted-foreground py-3 w-[120px]">{t('costCenters.status')}</TableHead>
-                <TableHead className="w-[80px]" />
+                {canManage && <TableHead className="w-[80px]" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,15 +161,17 @@ export default function CostCentersPage() {
                       {cc.is_active ? t('costCenters.active') : t('costCenters.inactive')}
                     </span>
                   </TableCell>
-                  <TableCell className="py-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEdit(cc)}
-                    >
-                      {t('costCenters.edit')}
-                    </Button>
-                  </TableCell>
+                  {canManage && (
+                    <TableCell className="py-3 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => openEdit(cc)}
+                      >
+                        {t('costCenters.edit')}
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
               {filtered.length === 0 && (

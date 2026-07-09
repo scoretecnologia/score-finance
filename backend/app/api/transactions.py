@@ -2,8 +2,7 @@ import csv
 import io
 import uuid
 from datetime import date
-from typing import List, Optional
-
+from typing import List, Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
@@ -11,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -158,7 +157,7 @@ async def bulk_categorize(
     data: BulkCategorizeRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     count = await transaction_service.bulk_update_category(
         session,
@@ -175,7 +174,7 @@ async def create_transfer(
     data: TransferCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     try:
         debit_tx, credit_tx = await transaction_service.create_transfer(session, company.id, data)
@@ -196,7 +195,7 @@ async def link_transfer(
     data: LinkTransferRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     """Link two existing transactions as an inter-account transfer pair."""
     try:
@@ -257,7 +256,7 @@ async def create_transaction(
     data: TransactionCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     try:
         transaction = await transaction_service.create_transaction(session, company.id, data)
@@ -274,7 +273,7 @@ async def update_transaction(
     data: TransactionUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     try:
         transaction = await transaction_service.update_transaction(session, transaction_id, company.id, data)
@@ -292,7 +291,7 @@ async def delete_transaction(
     transaction_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin", "member")),
 ):
     deleted = await transaction_service.delete_transaction(session, transaction_id, company.id)
     if not deleted:

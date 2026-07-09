@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import List, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_session
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.cost_center import CostCenter
 from app.models.user import User
 from app.models.company import Company
@@ -36,7 +36,7 @@ async def create_cost_center(
     cost_center_in: CostCenterCreate,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     cost_center = CostCenter(
         **cost_center_in.model_dump(),
@@ -54,7 +54,7 @@ async def update_cost_center(
     cost_center_in: CostCenterUpdate,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     stmt = select(CostCenter).where(
         CostCenter.id == cost_center_id,
@@ -80,7 +80,7 @@ async def delete_cost_center(
     cost_center_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_session),
     current_user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     stmt = select(CostCenter).where(
         CostCenter.id == cost_center_id,

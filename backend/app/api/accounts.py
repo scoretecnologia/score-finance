@@ -1,14 +1,14 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -124,7 +124,7 @@ async def create_account(
     data: AccountCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     account = await account_service.create_account(session, company.id, data)
     return account_service.serialize_account(account, None, None, data.balance_date)
@@ -136,7 +136,7 @@ async def update_account(
     data: AccountUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         account = await account_service.update_account(session, account_id, company.id, data)
@@ -161,7 +161,7 @@ async def delete_account(
     account_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         deleted = await account_service.delete_account(session, account_id, company.id)
@@ -178,7 +178,7 @@ async def close_account(
     account_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         account = await account_service.close_account(session, account_id, company.id)
@@ -194,7 +194,7 @@ async def reopen_account(
     account_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         account = await account_service.reopen_account(session, account_id, company.id)

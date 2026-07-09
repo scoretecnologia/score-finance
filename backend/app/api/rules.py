@@ -1,10 +1,11 @@
 import uuid
 
+from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -39,7 +40,7 @@ async def create_rule(
     data: RuleCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         return await rule_service.create_rule(session, company.id, data)
@@ -55,7 +56,7 @@ async def import_rules(
     payload: RuleBulkImportRequest,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         imported, skipped = await rule_service.bulk_import_rules(
@@ -78,7 +79,7 @@ async def update_rule(
     data: RuleUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         rule = await rule_service.update_rule(session, rule_id, company.id, data)
@@ -97,7 +98,7 @@ async def delete_rule(
     rule_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     deleted = await rule_service.delete_rule(session, rule_id, company.id)
     if not deleted:
@@ -129,7 +130,7 @@ async def install_rule_pack(
     pack_code: str,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     """Install a country-specific rule pack."""
     if pack_code not in rule_service.RULE_PACKS:
@@ -143,7 +144,7 @@ async def install_rule_pack(
 async def apply_all_rules(
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     """Re-apply all active rules to all existing transactions."""
     count = await rule_service.apply_all_rules(session, company.id)

@@ -21,6 +21,7 @@ import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { IconPicker } from '@/components/icon-picker'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { useCompany } from '@/contexts/company-context'
 
 function SectionCard({ children }: { children: React.ReactNode }) {
   return (
@@ -43,6 +44,8 @@ function SectionHeader({ title, titleExtra, action }: { title: string; titleExtr
 
 export default function CategoriesPage() {
   const { t } = useTranslation()
+  const { currentCompany } = useCompany()
+  const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
   const queryClient = useQueryClient()
   
   // Dialogs
@@ -263,36 +266,40 @@ export default function CategoriesPage() {
 
   const renderAccountItem = (acc: ChartAccount) => (
     <div key={acc.id} className="flex items-center gap-3 px-4 sm:px-5 pl-10 sm:pl-16 py-2 border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-      <input
-        type="checkbox"
-        className="h-4 w-4 rounded border-border accent-primary shrink-0"
-        checked={selectedAccountIds.has(acc.id)}
-        onChange={() => toggleSelectAccount(acc.id)}
-        onClick={(e) => e.stopPropagation()}
-      />
+      {canManage && (
+        <input
+          type="checkbox"
+          className="h-4 w-4 rounded border-border accent-primary shrink-0"
+          checked={selectedAccountIds.has(acc.id)}
+          onChange={() => toggleSelectAccount(acc.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       <CategoryIcon icon={acc.icon} color={acc.color} size="sm" />
       <span className="text-sm font-medium text-foreground flex-1 min-w-0 truncate">
         {acc.code ? <span className="text-muted-foreground mr-1.5">{acc.code}</span> : null}
         {acc.name}
       </span>
-      <div className="flex items-center gap-1 shrink-0 ml-2">
-        <button
-          className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-          onClick={() => openAccountDialog(acc)}
-          title={t('common.edit')}
-        >
-          <Pencil size={13} />
-        </button>
-        {!acc.is_system && !selectedAccountIds.has(acc.id) && (
+      {canManage && (
+        <div className="flex items-center gap-1 shrink-0 ml-2">
           <button
-            className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-            onClick={() => setDeleteConfirm({ type: 'account', id: acc.id, name: acc.name })}
-            title={t('common.delete')}
+            className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+            onClick={() => openAccountDialog(acc)}
+            title={t('common.edit')}
           >
-            <Trash2 size={13} />
+            <Pencil size={13} />
           </button>
-        )}
-      </div>
+          {!acc.is_system && !selectedAccountIds.has(acc.id) && (
+            <button
+              className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
+              onClick={() => setDeleteConfirm({ type: 'account', id: acc.id, name: acc.name })}
+              title={t('common.delete')}
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 
@@ -314,31 +321,33 @@ export default function CategoriesPage() {
             <span className="text-xs text-muted-foreground ml-2">({cat.chart_accounts?.length || 0})</span>
           </button>
           
-          <div className="flex items-center gap-1 shrink-0 ml-2">
-            <button
-              className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-              onClick={() => openAccountDialog(null, cat.id)}
-              title={t('chartAccounts.addAccount')}
-            >
-              <Plus size={13} />
-            </button>
-            <button
-              className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-              onClick={() => openCatDialog(cat)}
-              title={t('common.edit')}
-            >
-              <Pencil size={13} />
-            </button>
-            {!cat.is_system && (
+          {canManage && (
+            <div className="flex items-center gap-1 shrink-0 ml-2">
               <button
-                className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                onClick={() => setDeleteConfirm({ type: 'category', id: cat.id, name: cat.name })}
-                title={t('common.delete')}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                onClick={() => openAccountDialog(null, cat.id)}
+                title={t('chartAccounts.addAccount')}
               >
-                <Trash2 size={13} />
+                <Plus size={13} />
               </button>
-            )}
-          </div>
+              <button
+                className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                onClick={() => openCatDialog(cat)}
+                title={t('common.edit')}
+              >
+                <Pencil size={13} />
+              </button>
+              {!cat.is_system && (
+                <button
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                  onClick={() => setDeleteConfirm({ type: 'category', id: cat.id, name: cat.name })}
+                  title={t('common.delete')}
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {!isCollapsed && cat.chart_accounts?.map(renderAccountItem)}
       </div>
@@ -417,7 +426,7 @@ export default function CategoriesPage() {
       <PageHeader section={t('nav.settings')} title={t('chartAccounts.title')} />
 
       <SectionCard>
-        {selectedAccountIds.size > 0 && (
+        {selectedAccountIds.size > 0 && canManage && (
           <div className="px-4 sm:px-5 py-3 border-b border-border bg-primary/5 flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-foreground mr-2">
               {selectedAccountIds.size} {t('chartAccounts.selected')}
@@ -499,20 +508,22 @@ export default function CategoriesPage() {
             </button>
           }
           action={
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={downloadCoaTemplate}>
-                <Download size={12} /> <span className="hidden sm:inline">{t('chartAccounts.downloadTemplate')}</span>
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaImportDialogOpen(true)}>
-                <Upload size={12} /> <span className="hidden sm:inline">{t('chartAccounts.importXlsx')}</span>
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => openGroupDialog(null)}>
-                <Plus size={13} /> <span className="hidden sm:inline">{t('groups.add')}</span>
-              </Button>
-              <Button size="sm" className="gap-1.5 h-8" onClick={() => openCatDialog(null)}>
-                <Plus size={13} /> <span className="hidden sm:inline">{t('categories.addCategory')}</span>
-              </Button>
-            </div>
+            canManage ? (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={downloadCoaTemplate}>
+                  <Download size={12} /> <span className="hidden sm:inline">{t('chartAccounts.downloadTemplate')}</span>
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaImportDialogOpen(true)}>
+                  <Upload size={12} /> <span className="hidden sm:inline">{t('chartAccounts.importXlsx')}</span>
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => openGroupDialog(null)}>
+                  <Plus size={13} /> <span className="hidden sm:inline">{t('groups.add')}</span>
+                </Button>
+                <Button size="sm" className="gap-1.5 h-8" onClick={() => openCatDialog(null)}>
+                  <Plus size={13} /> <span className="hidden sm:inline">{t('categories.addCategory')}</span>
+                </Button>
+              </div>
+            ) : null
           }
         />
         <div>
@@ -533,31 +544,33 @@ export default function CategoriesPage() {
                     </span>
                     <span className="text-xs text-muted-foreground">({group.categories.length})</span>
                   </button>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                      onClick={() => openCatDialog(null, group.id)}
-                      title={t('categories.addCategory')}
-                    >
-                      <Plus size={13} />
-                    </button>
-                    <button
-                      className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                      onClick={() => openGroupDialog(group)}
-                      title={t('common.edit')}
-                    >
-                      <Pencil size={13} />
-                    </button>
-                    {!group.is_system && (
+                  {canManage && (
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                        onClick={() => setDeleteConfirm({ type: 'group', id: group.id, name: group.name })}
-                        title={t('common.delete')}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                        onClick={() => openCatDialog(null, group.id)}
+                        title={t('categories.addCategory')}
                       >
-                        <Trash2 size={13} />
+                        <Plus size={13} />
                       </button>
-                    )}
-                  </div>
+                      <button
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                        onClick={() => openGroupDialog(group)}
+                        title={t('common.edit')}
+                      >
+                        <Pencil size={13} />
+                      </button>
+                      {!group.is_system && (
+                        <button
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                          onClick={() => setDeleteConfirm({ type: 'group', id: group.id, name: group.name })}
+                          title={t('common.delete')}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {!isCollapsed && group.categories.map(renderCategoryItem)}
               </div>

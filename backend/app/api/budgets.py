@@ -1,12 +1,12 @@
 import uuid
 from datetime import date
-from typing import Optional
+from typing import Optional, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import current_active_user
-from app.core.tenant import get_current_company
+from app.core.tenant import get_current_company, require_role
 from app.models.company import Company
 from app.core.database import get_async_session
 from app.models.user import User
@@ -31,7 +31,7 @@ async def create_budget(
     data: BudgetCreate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     try:
         return await budget_service.create_budget(session, company.id, data)
@@ -45,7 +45,7 @@ async def update_budget(
     data: BudgetUpdate,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     budget = await budget_service.update_budget(session, budget_id, company.id, data)
     if not budget:
@@ -58,7 +58,7 @@ async def delete_budget(
     budget_id: uuid.UUID,
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
-    company: Company = Depends(get_current_company),
+    company: Company = Depends(require_role("owner", "admin")),
 ):
     deleted = await budget_service.delete_budget(session, budget_id, company.id)
     if not deleted:

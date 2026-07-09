@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useCompany } from '@/contexts/company-context'
 import { format } from 'date-fns'
 import { CreditCard, FileText, Loader2, SearchX, Search, ArrowUpDown, ArrowUp, ArrowDown, RefreshCw, Trash2 } from 'lucide-react'
 import { invoicesApi, transactions as transactionsApi } from '@/lib/api'
@@ -26,6 +27,8 @@ export default function CreditCardInvoices() {
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set())
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const queryClient = useQueryClient()
+  const { currentCompany } = useCompany()
+  const canManage = currentCompany?.role !== 'viewer'
 
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['invoices'] })
@@ -290,21 +293,23 @@ export default function CreditCardInvoices() {
               <Table>
                 <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-md z-10 shadow-sm">
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-10 pl-6 pr-0">
-                      <input
-                        type="checkbox"
-                        checked={sortedTransactions.length > 0 && selectedTxIds.size === sortedTransactions.length}
-                        ref={(el) => { if (el) el.indeterminate = selectedTxIds.size > 0 && selectedTxIds.size < sortedTransactions.length }}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedTxIds(new Set(sortedTransactions.map(t => t.id)))
-                          } else {
-                            setSelectedTxIds(new Set())
-                          }
-                        }}
-                        className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-                      />
-                    </TableHead>
+                    {canManage && (
+                      <TableHead className="w-10 pl-6 pr-0">
+                        <input
+                          type="checkbox"
+                          checked={sortedTransactions.length > 0 && selectedTxIds.size === sortedTransactions.length}
+                          ref={(el) => { if (el) el.indeterminate = selectedTxIds.size > 0 && selectedTxIds.size < sortedTransactions.length }}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTxIds(new Set(sortedTransactions.map(t => t.id)))
+                            } else {
+                              setSelectedTxIds(new Set())
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead className="pl-4 w-24">Data</TableHead>
                     <TableHead 
                       className="cursor-pointer select-none hover:text-foreground transition-colors group w-1/2"
@@ -339,19 +344,21 @@ export default function CreditCardInvoices() {
                     const isPayment = txn.type === 'credit' || (selectedInvoice && txn.account_id !== selectedInvoice.account_id)
                     return (
                     <TableRow key={txn.id} className={`hover:bg-muted/30 ${selectedTxIds.has(txn.id) ? 'bg-primary/5' : ''}`}>
-                      <TableCell className="pl-6 pr-0 w-10">
-                        <input
-                          type="checkbox"
-                          checked={selectedTxIds.has(txn.id)}
-                          onChange={(e) => {
-                            const newSet = new Set(selectedTxIds)
-                            if (e.target.checked) newSet.add(txn.id)
-                            else newSet.delete(txn.id)
-                            setSelectedTxIds(newSet)
-                          }}
-                          className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-                        />
-                      </TableCell>
+                      {canManage && (
+                        <TableCell className="pl-6 pr-0 w-10">
+                          <input
+                            type="checkbox"
+                            checked={selectedTxIds.has(txn.id)}
+                            onChange={(e) => {
+                              const newSet = new Set(selectedTxIds)
+                              if (e.target.checked) newSet.add(txn.id)
+                              else newSet.delete(txn.id)
+                              setSelectedTxIds(newSet)
+                            }}
+                            className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell className="pl-4 text-muted-foreground whitespace-nowrap">
                         {new Date(txn.date + 'T12:00:00').toLocaleDateString('pt-BR')}
                       </TableCell>
@@ -406,15 +413,17 @@ export default function CreditCardInvoices() {
                 <span className="text-sm font-medium text-foreground">
                   {selectedTxIds.size} selecionado(s)
                 </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setBulkDeleteDialogOpen(true)}
-                    className="inline-flex items-center justify-center rounded-md bg-destructive w-8 h-8 text-destructive-foreground hover:bg-destructive/90 transition-colors"
-                    title="Excluir"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setBulkDeleteDialogOpen(true)}
+                      className="inline-flex items-center justify-center rounded-md bg-destructive w-8 h-8 text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

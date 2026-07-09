@@ -28,7 +28,7 @@ import { ICON_MAP } from '@/lib/category-icons'
 import { IconPicker } from '@/components/icon-picker'
 import { PageHeader } from '@/components/page-header'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
-import { useAuth } from '@/contexts/auth-context'
+import { useCompany } from '@/contexts/company-context'
 
 function formatCurrency(value: number, _currency?: string, _locale?: string) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -102,7 +102,8 @@ function daysUntil(dateStr: string): number {
 export default function GoalsPage() {
   const { t, i18n } = useTranslation()
   const { mask } = usePrivacyMode()
-  useAuth()
+  const { currentCompany } = useCompany()
+  const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
   const locale = i18n.language === 'en' ? 'en-US' : i18n.language
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -209,9 +210,11 @@ export default function GoalsPage() {
         <SectionHeader
           title={t('goals.title')}
           action={
-            <Button size="sm" className="gap-1.5 h-8" onClick={openCreateDialog}>
-              <Plus size={13} /> {t('goals.add')}
-            </Button>
+            canManage && (
+              <Button size="sm" className="gap-1.5 h-8" onClick={openCreateDialog}>
+                <Plus size={13} /> {t('goals.add')}
+              </Button>
+            )
           }
         />
         {goalsList && goalsList.length > 0 ? (
@@ -291,57 +294,59 @@ export default function GoalsPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {goal.status === 'active' && (
+                    {canManage && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        {goal.status === 'active' && (
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
+                            onClick={() => statusMutation.mutate({ id: goal.id, status: 'paused' })}
+                            title={t('goals.pause')}
+                          >
+                            <Pause size={13} />
+                          </button>
+                        )}
+                        {goal.status === 'paused' && (
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                            onClick={() => statusMutation.mutate({ id: goal.id, status: 'active' })}
+                            title={t('goals.resume')}
+                          >
+                            <Play size={13} />
+                          </button>
+                        )}
+                        {(goal.status === 'active' || goal.status === 'paused') && (
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                            onClick={() => statusMutation.mutate({ id: goal.id, status: 'completed' })}
+                            title={t('goals.complete')}
+                          >
+                            <CheckCircle2 size={13} />
+                          </button>
+                        )}
+                        {goal.status !== 'archived' && (
+                          <button
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted transition-colors"
+                            onClick={() => statusMutation.mutate({ id: goal.id, status: 'archived' })}
+                            title={t('goals.archive')}
+                          >
+                            <Archive size={13} />
+                          </button>
+                        )}
                         <button
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
-                          onClick={() => statusMutation.mutate({ id: goal.id, status: 'paused' })}
-                          title={t('goals.pause')}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
+                          onClick={() => openEditDialog(goal)}
                         >
-                          <Pause size={13} />
+                          <Pencil size={13} />
                         </button>
-                      )}
-                      {goal.status === 'paused' && (
                         <button
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
-                          onClick={() => statusMutation.mutate({ id: goal.id, status: 'active' })}
-                          title={t('goals.resume')}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                          onClick={() => deleteMutation.mutate(goal.id)}
+                          disabled={deleteMutation.isPending}
                         >
-                          <Play size={13} />
+                          <Trash2 size={13} />
                         </button>
-                      )}
-                      {(goal.status === 'active' || goal.status === 'paused') && (
-                        <button
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-                          onClick={() => statusMutation.mutate({ id: goal.id, status: 'completed' })}
-                          title={t('goals.complete')}
-                        >
-                          <CheckCircle2 size={13} />
-                        </button>
-                      )}
-                      {goal.status !== 'archived' && (
-                        <button
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-muted-foreground/80 hover:bg-muted transition-colors"
-                          onClick={() => statusMutation.mutate({ id: goal.id, status: 'archived' })}
-                          title={t('goals.archive')}
-                        >
-                          <Archive size={13} />
-                        </button>
-                      )}
-                      <button
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                        onClick={() => openEditDialog(goal)}
-                      >
-                        <Pencil size={13} />
-                      </button>
-                      <button
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
-                        onClick={() => deleteMutation.mutate(goal.id)}
-                        disabled={deleteMutation.isPending}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )
