@@ -545,18 +545,33 @@ async def get_installed_packs(session: AsyncSession, company_id: uuid.UUID) -> d
 
 
 async def get_rules(
-    session: AsyncSession, company_id: uuid.UUID, page: int = 1, limit: int = 10
+    session: AsyncSession, company_id: uuid.UUID, page: int = 1, limit: int = 10,
+    search: Optional[str] = None, sort_by: str = "priority", sort_dir: str = "asc"
 ) -> tuple[list[Rule], int]:
-    total_result = await session.execute(
-        select(func.count(Rule.id)).where(Rule.company_id == company_id)
-    )
+    base_query = select(Rule).where(Rule.company_id == company_id)
+    if search:
+        base_query = base_query.where(Rule.name.ilike(f"%{search}%"))
+
+    count_query = select(func.count(Rule.id)).where(Rule.company_id == company_id)
+    if search:
+        count_query = count_query.where(Rule.name.ilike(f"%{search}%"))
+        
+    total_result = await session.execute(count_query)
     total = total_result.scalar() or 0
+
+    order_col = Rule.priority
+    if sort_by == "name":
+        order_col = Rule.name
+        
+    if sort_dir == "desc":
+        order_col = order_col.desc()
+    else:
+        order_col = order_col.asc()
 
     offset = (page - 1) * limit
     result = await session.execute(
-        select(Rule)
-        .where(Rule.company_id == company_id)
-        .order_by(Rule.priority, Rule.id)
+        base_query
+        .order_by(order_col, Rule.id)
         .offset(offset)
         .limit(limit)
     )

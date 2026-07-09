@@ -588,7 +588,7 @@ export const payees = {
 
 // Categorization Rules
 export const rules = {
-  list: async (params?: { page?: number; limit?: number }): Promise<PaginatedResponse<Rule>> => {
+  list: async (params?: { page?: number; limit?: number; search?: string; sort_by?: string; sort_dir?: string }): Promise<PaginatedResponse<Rule>> => {
     const { data } = await api.get('/rules', { params })
     return data
   },

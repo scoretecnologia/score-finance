@@ -1,6 +1,6 @@
 import uuid
 
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,11 +27,16 @@ router = APIRouter(prefix="/api/rules", tags=["rules"])
 async def list_rules(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
+    search: Optional[str] = Query(None, description="Search by name"),
+    sort_by: Optional[str] = Query("priority", description="Field to sort by"),
+    sort_dir: Optional[str] = Query("asc", description="Sort direction: asc or desc"),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(get_current_company),
 ):
-    items, total = await rule_service.get_rules(session, company.id, page=page, limit=limit)
+    items, total = await rule_service.get_rules(
+        session, company.id, page=page, limit=limit, search=search, sort_by=sort_by, sort_dir=sort_dir
+    )
     return PaginatedRules(items=items, total=total, page=page, limit=limit)
 
 

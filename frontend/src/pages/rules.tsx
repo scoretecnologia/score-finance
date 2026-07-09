@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { getAccountName } from '@/lib/account-utils'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -264,10 +264,24 @@ export default function RulesPage() {
   })
 
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [search])
+
+  const [sortBy, setSortBy] = useState<'priority' | 'name'>('priority')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
   const { data: rulesList } = useQuery({
-    queryKey: ['rules', page],
-    queryFn: () => rulesApi.list({ page, limit: 10 }),
+    queryKey: ['rules', page, limit, sortBy, sortDir, debouncedSearch],
+    queryFn: () => rulesApi.list({ page, limit, sort_by: sortBy, sort_dir: sortDir, search: debouncedSearch || undefined }),
     placeholderData: (prev) => prev,
   })
 
@@ -275,26 +289,7 @@ export default function RulesPage() {
   const payees = payeesList ?? []
   const costCenters = costCentersList ?? []
 
-  const [sortBy, setSortBy] = useState<'priority' | 'name' | 'category'>('priority')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
-
-  const sortedRules = useMemo(() => {
-    const list = [...(rulesList?.items ?? [])]
-    const dir = sortDir === 'asc' ? 1 : -1
-    if (sortBy === 'name') {
-      return list.sort((a, b) => dir * a.name.localeCompare(b.name))
-    }
-    if (sortBy === 'category') {
-      const getCategoryName = (rule: Rule) => {
-        const action = rule.actions.find(a => a.op === 'set_category')
-        if (!action) return ''
-        const acc = chartAccounts.find(c => c.id === action.value)
-        return acc?.name ?? ''
-      }
-      return list.sort((a, b) => dir * getCategoryName(a).localeCompare(getCategoryName(b)))
-    }
-    return list.sort((a, b) => dir * (a.priority - b.priority))
-  }, [rulesList, chartAccounts, sortBy, sortDir])
+  const sortedRules = rulesList?.items ?? []
 
   function downloadTemplate() {
     const header = ['Nome da Regra', 'Descrição', 'Tipo', 'Categoria']
@@ -367,28 +362,40 @@ export default function RulesPage() {
             </div>
           }
         />
-        <div className="px-4 sm:px-5 py-2 bg-muted/50 border-b border-border flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t('rules.sortLabel')}</span>
-          {(['priority', 'name', 'category'] as const).map(opt => (
-            <button
-              key={opt}
-              onClick={() => {
-                if (sortBy === opt) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-                else { setSortBy(opt); setSortDir('asc') }
-              }}
-              className={cn(
-                'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
-                sortBy === opt
-                  ? 'bg-background border border-border text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
-              )}
-            >
-              {t(`rules.sortBy_${opt}`)}
-              {sortBy === opt
-                ? sortDir === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />
-                : <ArrowUpDown size={11} className="opacity-30" />}
-            </button>
-          ))}
+        <div className="px-4 sm:px-5 py-2 bg-muted/50 border-b border-border flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">{t('rules.sortLabel')}</span>
+            {(['priority', 'name'] as const).map(opt => (
+              <button
+                key={opt}
+                onClick={() => {
+                  if (sortBy === opt) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                  else { setSortBy(opt); setSortDir('asc') }
+                  setPage(1)
+                }}
+                className={cn(
+                  'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-colors',
+                  sortBy === opt
+                    ? 'bg-background border border-border text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
+                )}
+              >
+                {t(`rules.sortBy_${opt}`)}
+                {sortBy === opt
+                  ? sortDir === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />
+                  : <ArrowUpDown size={11} className="opacity-30" />}
+              </button>
+            ))}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+            <Input
+              placeholder="Buscar regras..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="h-8 pl-8 text-xs w-[200px]"
+            />
+          </div>
         </div>
         {rulesList && rulesList.items.length > 0 ? (
           <div className="divide-y divide-border">
@@ -438,27 +445,47 @@ export default function RulesPage() {
         )}
       </SectionCard>
 
-      {rulesList && rulesList.total > 10 && (
-        <div className="flex items-center justify-center gap-2 pt-4 pb-6">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {page} / {Math.ceil(rulesList.total / 10)}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= Math.ceil(rulesList.total / 10)}
-            onClick={() => setPage(page + 1)}
-          >
-            Próximo
-          </Button>
+      {rulesList && rulesList.total > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 pb-6 px-1">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>Mostrar</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value))
+                setPage(1)
+              }}
+              className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs outline-none"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+            <span>por página</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground min-w-[3rem] text-center">
+              {page} / {Math.max(1, Math.ceil(rulesList.total / limit))}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= Math.ceil(rulesList.total / limit)}
+              onClick={() => setPage(page + 1)}
+            >
+              Próximo
+            </Button>
+          </div>
         </div>
       )}
 
