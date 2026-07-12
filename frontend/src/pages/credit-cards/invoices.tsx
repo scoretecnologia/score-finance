@@ -108,7 +108,7 @@ export default function CreditCardInvoices() {
       if (valA !== valB) {
         return sortDirection === 'asc' ? valA - valB : valB - valA
       }
-      return sortDirection === 'asc' ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      return 0
     }
     return 0
   })

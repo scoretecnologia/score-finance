@@ -14,7 +14,7 @@ interface ChartAccountSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSe
   disabled?: boolean
 }
 
-export function ChartAccountSelect({ className, value, onChange, disabled, ...props }: ChartAccountSelectProps) {
+export function ChartAccountSelect({ className, value, onChange, disabled }: ChartAccountSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const { data: groups } = useQuery({
