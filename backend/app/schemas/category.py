@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.chart_account import ChartAccountRead
 
@@ -13,6 +13,11 @@ class CategoryBase(BaseModel):
     color: str = "#6B7280"
     position: int = 0
     is_synthetic: bool = False
+
+    @field_validator('code', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v: Optional[str]) -> Optional[str]:
+        return None if v == "" else v
 
 
 class CategoryCreate(CategoryBase):
@@ -26,6 +31,11 @@ class CategoryUpdate(BaseModel):
     color: Optional[str] = None
     position: Optional[int] = None
     group_id: Optional[uuid.UUID] = None
+
+    @field_validator('code', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v: Optional[str]) -> Optional[str]:
+        return None if v == "" else v
 
 
 class CategoryRead(CategoryBase):

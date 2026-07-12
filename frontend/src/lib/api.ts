@@ -334,6 +334,8 @@ export const transactions = {
     limit?: number
     include_opening_balance?: boolean
     exclude_transfers?: boolean
+    sort_by?: string
+    sort_dir?: string
   }): Promise<PaginatedResponse<Transaction>> => {
     const { data } = await api.get('/transactions', {
       params,

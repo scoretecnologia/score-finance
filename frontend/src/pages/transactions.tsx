@@ -17,7 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Info, Paperclip, X, Trash2, CreditCard } from 'lucide-react'
+import { AlertTriangle, ArrowLeftRight, Check, Download, HelpCircle, Info, Paperclip, X, Trash2, CreditCard, ArrowDown, ArrowUp } from 'lucide-react'
 import type { Transaction } from '@/types'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
@@ -59,6 +59,8 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   const [filterUncategorized, setFilterUncategorized] = useState<boolean>(false)
   const [filterFrom, setFilterFrom] = useState<string>('')
   const [filterTo, setFilterTo] = useState<string>('')
+  const [sortBy, setSortBy] = useState<string>('date')
+  const [sortDir, setSortDir] = useState<string>('desc')
   const [searchInput, setSearchInput] = useState(() => searchParams.get('q') ?? '')
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') ?? '')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -130,7 +132,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType],
+    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType, sortBy, sortDir],
     queryFn: () =>
       transactions.list({
         page,
@@ -144,8 +146,25 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         to: filterTo || undefined,
         q: searchQuery || undefined,
         account_type: accountType,
+        sort_by: sortBy,
+        sort_dir: sortDir,
       }),
   })
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortDir('asc')
+    }
+    setPage(1)
+  }
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortBy !== column) return <ArrowDown className="ml-1 h-3 w-3 opacity-20" />
+    return sortDir === 'asc' ? <ArrowUp className="ml-1 h-3 w-3 opacity-70" /> : <ArrowDown className="ml-1 h-3 w-3 opacity-70" />
+  }
 
 
 
@@ -523,11 +542,19 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                     />
                   </TableHead>
                 )}
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[30%]">{t('transactions.description')}</TableHead>
-                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.category')}</TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[30%] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('description')}>
+                  <div className="flex items-center">{t('transactions.description')} <SortIcon column="description" /></div>
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('category')}>
+                  <div className="flex items-center">{t('transactions.category')} <SortIcon column="category" /></div>
+                </TableHead>
                 <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.notes')}</TableHead>
-                <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px]">{t('transactions.account')}</TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px]">{t('transactions.amount')}</TableHead>
+                <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('account')}>
+                  <div className="flex items-center">{t('transactions.account')} <SortIcon column="account" /></div>
+                </TableHead>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('amount')}>
+                  <div className="flex items-center justify-end">{t('transactions.amount')} <SortIcon column="amount" /></div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

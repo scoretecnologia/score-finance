@@ -63,6 +63,8 @@ async def list_transactions(
     type: Optional[str] = Query(None),
     account_type: Optional[str] = Query(None),
     cardholder_name: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query(None),
+    sort_dir: Optional[str] = Query("desc"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=500),
     include_opening_balance: bool = Query(False),
@@ -82,6 +84,7 @@ async def list_transactions(
         include_opening_balance=include_opening_balance, search=q, uncategorized=uncategorized,
         txn_type=type, account_type=account_type, exclude_transfers=exclude_transfers,
         accounting_mode=accounting_mode, cardholder_name=cardholder_name,
+        sort_by=sort_by, sort_dir=sort_dir,
     )
     primary_currency = user.primary_currency
     items = [_tag_fx_fallback(TransactionRead.model_validate(tx, from_attributes=True), primary_currency) for tx in transactions]

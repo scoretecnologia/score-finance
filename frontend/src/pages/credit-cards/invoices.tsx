@@ -22,8 +22,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 export default function CreditCardInvoices() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [sortField, setSortField] = useState<'description' | 'amount' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [sortField, setSortField] = useState<'date' | 'description' | 'amount'>('date')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set())
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false)
   const queryClient = useQueryClient()
@@ -38,8 +38,8 @@ export default function CreditCardInvoices() {
   useEffect(() => {
     if (!selectedInvoiceId) {
       setSearchTerm('')
-      setSortField(null)
-      setSortDirection('asc')
+      setSortField('date')
+      setSortDirection('desc')
     }
   }, [selectedInvoiceId])
 
@@ -74,7 +74,7 @@ export default function CreditCardInvoices() {
 
   const isRefreshing = isFetching || isFetchingTransactions || bulkDeleteMutation.isPending
 
-  const handleSort = (field: 'description' | 'amount') => {
+  const handleSort = (field: 'date' | 'description' | 'amount') => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
     } else {
@@ -98,9 +98,17 @@ export default function CreditCardInvoices() {
       return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA)
     }
     if (sortField === 'amount') {
-      const valA = a.type === 'credit' ? Number(a.amount) : -Number(a.amount)
-      const valB = b.type === 'credit' ? Number(b.amount) : -Number(b.amount)
+      const valA = Number(a.amount)
+      const valB = Number(b.amount)
       return sortDirection === 'asc' ? valA - valB : valB - valA
+    }
+    if (sortField === 'date') {
+      const valA = new Date(a.date).getTime()
+      const valB = new Date(b.date).getTime()
+      if (valA !== valB) {
+        return sortDirection === 'asc' ? valA - valB : valB - valA
+      }
+      return sortDirection === 'asc' ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime() : new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     }
     return 0
   })
@@ -310,7 +318,19 @@ export default function CreditCardInvoices() {
                         />
                       </TableHead>
                     )}
-                    <TableHead className="pl-4 w-24">Data</TableHead>
+                    <TableHead 
+                      className="pl-4 w-24 cursor-pointer select-none hover:text-foreground transition-colors group"
+                      onClick={() => handleSort('date')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Data
+                        {sortField === 'date' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="w-3.5 h-3.5" /> : <ArrowDown className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowUpDown className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead 
                       className="cursor-pointer select-none hover:text-foreground transition-colors group w-1/2"
                       onClick={() => handleSort('description')}

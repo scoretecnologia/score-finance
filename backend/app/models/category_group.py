@@ -29,4 +29,4 @@ class CategoryGroup(Base):
 
     company: Mapped["Company"] = relationship()
     created_by: Mapped[Optional["User"]] = relationship(foreign_keys=[created_by_user_id], back_populates="category_groups")
-    categories: Mapped[list["Category"]] = relationship(back_populates="group")
+    categories: Mapped[list["Category"]] = relationship(back_populates="group", order_by="[Category.code, Category.name]")

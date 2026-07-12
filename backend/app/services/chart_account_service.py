@@ -14,7 +14,7 @@ async def get_chart_accounts(session: AsyncSession, company_id: uuid.UUID) -> li
     result = await session.execute(
         select(ChartAccount)
         .where(ChartAccount.company_id == company_id)
-        .order_by(ChartAccount.position, ChartAccount.name)
+        .order_by(ChartAccount.code, ChartAccount.name)
     )
     return list(result.scalars().all())
 

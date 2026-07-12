@@ -67,7 +67,7 @@ async def get_categories(session: AsyncSession, company_id: uuid.UUID) -> list[C
         select(Category)
         .where(Category.company_id == company_id)
         .options(selectinload(Category.chart_accounts))
-        .order_by(Category.is_system.desc(), Category.name)
+        .order_by(Category.code, Category.name)
     )
     return list(result.scalars().all())
 

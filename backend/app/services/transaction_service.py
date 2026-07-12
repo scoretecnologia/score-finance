@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import select, func, or_, update
+from sqlalchemy import select, func, or_, update, cast, String
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -69,6 +69,8 @@ async def get_transactions(
     accounting_mode: Optional[str] = None,
     account_type: Optional[str] = None,
     cardholder_name: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    sort_dir: Optional[str] = "desc",
 ) -> tuple[list[Transaction], int]:
     # In "accrual" mode, bucket/order by effective_date so list filters
     # line up with the cash-flow view used by the dashboard and reports.
@@ -137,6 +139,12 @@ async def get_transactions(
         base_query = base_query.where(date_col <= to_date)
     if search:
         term = f"%{search}%"
+        
+        # Clean up the search string so it matches numeric formats in the DB
+        amount_str = search.replace("R$", "").replace("R", "").replace("$", "").strip()
+        amount_str = amount_str.replace(",", ".")
+        amount_term = f"%{amount_str}%"
+        
         base_query = base_query.where(
             or_(
                 Transaction.description.ilike(term),
@@ -144,6 +152,7 @@ async def get_transactions(
                 Transaction.notes.ilike(term),
                 Transaction.cardholder_name.ilike(term),
                 Payee.name.ilike(term),
+                cast(Transaction.amount, String).ilike(amount_term),
             )
         )
 
@@ -151,8 +160,26 @@ async def get_transactions(
     count_query = select(func.count()).select_from(base_query.subquery())
     total = await session.scalar(count_query)
 
-    # Apply ordering (and pagination unless skipped)
-    query = base_query.order_by(date_col.desc(), Transaction.created_at.desc())
+    # Apply ordering
+    if sort_by == 'description':
+        order_col = Transaction.description
+    elif sort_by == 'amount':
+        order_col = Transaction.amount
+    elif sort_by == 'account':
+        order_col = Account.name
+    elif sort_by == 'category':
+        base_query = base_query.outerjoin(Category, Transaction.category_id == Category.id).outerjoin(ChartAccount, Transaction.chart_account_id == ChartAccount.id)
+        order_col = func.coalesce(ChartAccount.name, Category.name)
+    else:
+        order_col = date_col
+
+    if sort_by and sort_by != 'date':
+        order_expr = order_col.desc() if sort_dir == 'desc' else order_col.asc()
+        query = base_query.order_by(order_expr, date_col.desc(), Transaction.created_at.desc())
+    else:
+        order_expr = date_col.desc() if sort_dir == 'desc' else date_col.asc()
+        query = base_query.order_by(order_expr, Transaction.created_at.desc())
+
     if not skip_pagination:
         query = query.offset((page - 1) * limit).limit(limit)
 

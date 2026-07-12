@@ -11,7 +11,7 @@ import { toast } from 'sonner'
 import type { Transaction } from '@/types'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, HelpCircle, Paperclip, Pencil, X } from 'lucide-react'
+import { ArrowLeft, ArrowLeftRight, ChevronLeft, ChevronRight, Clock, HelpCircle, Paperclip, Pencil, X, ArrowDown, ArrowUp } from 'lucide-react'
 import { CategoryIcon } from '@/components/category-icon'
 import { TransactionDialog, extractApiError } from '@/components/transaction-dialog'
 import { TransferDialog } from '@/components/transfer-dialog'
@@ -235,6 +235,8 @@ export default function AccountDetailPage() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
   const [filterFrom, setFilterFrom] = useState(defaultFrom)
   const [filterTo, setFilterTo] = useState(defaultTo)
+  const [sortBy, setSortBy] = useState<string>('date')
+  const [sortDir, setSortDir] = useState<string>('desc')
   const [showPrimary, setShowPrimary] = useState(false)
   const filterTouched = useRef(false)
   const handleFilterFromChange = (v: string) => { filterTouched.current = true; setFilterFrom(v) }
@@ -326,16 +328,32 @@ export default function AccountDetailPage() {
   })
 
   const { data: txData, isLoading: txLoading } = useQuery({
-    queryKey: ['transactions', { account_id: id, from: filterFrom, to: filterTo, limit: 500, include_opening_balance: true }],
+    queryKey: ['transactions', { account_id: id, from: filterFrom, to: filterTo, limit: 500, include_opening_balance: true, sort_by: sortBy, sort_dir: sortDir }],
     queryFn: () => transactions.list({
       account_id: id,
       from: filterFrom || undefined,
       to: filterTo || undefined,
       limit: 500,
       include_opening_balance: true,
+      sort_by: sortBy,
+      sort_dir: sortDir,
     }),
     enabled: !!id,
   })
+
+  const handleSort = (column: string) => {
+    if (sortBy === column) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(column)
+      setSortDir('asc')
+    }
+  }
+
+  const SortIcon = ({ column }: { column: string }) => {
+    if (sortBy !== column) return <ArrowDown className="ml-1 h-3 w-3 opacity-20" />
+    return sortDir === 'asc' ? <ArrowUp className="ml-1 h-3 w-3 opacity-70" /> : <ArrowDown className="ml-1 h-3 w-3 opacity-70" />
+  }
 
 
 
@@ -1078,10 +1096,18 @@ export default function AccountDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('transactions.date')}</th>
-                    <th className="px-3 sm:px-4 py-3 text-left font-medium">{t('transactions.description')}</th>
-                    <th className="px-4 py-3 text-left font-medium hidden md:table-cell">{t('transactions.category')}</th>
-                    <th className="px-3 sm:px-4 py-3 text-right font-medium">{t('transactions.amount')}</th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('date')}>
+                      <div className="flex items-center">{t('transactions.date')} <SortIcon column="date" /></div>
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-left font-medium cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('description')}>
+                      <div className="flex items-center">{t('transactions.description')} <SortIcon column="description" /></div>
+                    </th>
+                    <th className="px-4 py-3 text-left font-medium hidden md:table-cell cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('category')}>
+                      <div className="flex items-center">{t('transactions.category')} <SortIcon column="category" /></div>
+                    </th>
+                    <th className="px-3 sm:px-4 py-3 text-right font-medium cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('amount')}>
+                      <div className="flex items-center justify-end">{t('transactions.amount')} <SortIcon column="amount" /></div>
+                    </th>
                     <th className="px-4 py-3 text-right font-medium hidden sm:table-cell">{t('accounts.runningBalance')}</th>
                   </tr>
                 </thead>
