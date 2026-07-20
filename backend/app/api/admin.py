@@ -16,6 +16,7 @@ from app.schemas.admin import (
     AdminUserUpdate,
     AppSettingRead,
     AppSettingUpdate,
+    AdminCompanyUpdate,
 )
 from app.services import admin_service
 
@@ -182,6 +183,22 @@ async def admin_list_companies(
         for c in companies
     ]
 
+
+@router.patch("/companies/{company_id}")
+async def admin_update_company(
+    company_id: uuid.UUID,
+    data: AdminCompanyUpdate,
+    session: AsyncSession = Depends(get_async_session),
+    _user: User = Depends(current_superuser),
+):
+    """Atualiza dados de uma empresa no nível administrativo (ex: desativar)."""
+    company = await session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Empresa não encontrada.")
+    company.is_active = data.is_active
+    await session.commit()
+    await session.refresh(company)
+    return {"id": company.id, "is_active": company.is_active}
 
 
 async def check_registration_enabled(

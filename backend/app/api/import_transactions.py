@@ -65,7 +65,7 @@ async def preview_import(
             pass
 
     chart_account_map = {}
-    if mapping_dict and "chart_account_code" in mapping_dict.values():
+    if mapping_dict and "chart_account_code" in mapping_dict.keys():
         from sqlalchemy import select
         from app.models.chart_account import ChartAccount
         stmt = select(ChartAccount.id, ChartAccount.code).where(
@@ -76,6 +76,23 @@ async def preview_import(
         for ca_id, ca_code in result.all():
             if ca_code:
                 chart_account_map[str(ca_code).strip().lower()] = ca_id
+        
+        # DEBUG
+        chart_account_map["__DEBUG_COMPANY__"] = f"{company.name} ({company.id})"
+
+    cost_center_map = {}
+    if mapping_dict and "cost_center_code" in mapping_dict.keys():
+        from sqlalchemy import select
+        from app.models.cost_center import CostCenter
+        stmt = select(CostCenter.id, CostCenter.code).where(
+            CostCenter.company_id == company.id,
+            CostCenter.code.isnot(None),
+            CostCenter.is_active == True
+        )
+        result = await db.execute(stmt)
+        for cc_id, cc_code in result.all():
+            if cc_code:
+                cost_center_map[str(cc_code).strip().lower()] = cc_id
 
     try:
         if filename.lower().endswith('.ofx') or filename.lower().endswith('.qfx'):
@@ -96,6 +113,7 @@ async def preview_import(
                 outflow_column=outflow_column,
                 column_mapping=mapping_dict,
                 chart_account_map=chart_account_map,
+                cost_center_map=cost_center_map,
             )
             detected_format = "csv"
         elif filename.lower().endswith('.xls') or filename.lower().endswith('.xlsx'):
@@ -107,6 +125,7 @@ async def preview_import(
                 outflow_column=outflow_column,
                 column_mapping=mapping_dict,
                 chart_account_map=chart_account_map,
+                cost_center_map=cost_center_map,
             )
             detected_format = "excel"
         else:

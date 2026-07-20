@@ -20,6 +20,7 @@ class TransactionBase(BaseModel):
     fx_rate: Optional[Decimal] = None
     payee_raw: Optional[str] = None  # raw payee string from import (OFX/QIF)
     chart_account_id: Optional[uuid.UUID] = None
+    cost_center_id: Optional[uuid.UUID] = None
     cardholder_name: Optional[str] = None
     import_error: Optional[str] = None
 

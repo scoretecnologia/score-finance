@@ -47,3 +47,7 @@ class AppSettingRead(BaseModel):
 
 class AppSettingUpdate(BaseModel):
     value: str
+
+
+class AdminCompanyUpdate(BaseModel):
+    is_active: bool

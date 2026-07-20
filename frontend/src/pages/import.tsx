@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { transactions as transactionsApi, accounts as accountsApi, importLogs as importLogsApi, settings as settingsApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { toast } from 'sonner'
+import * as XLSX from 'xlsx'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -39,6 +40,7 @@ const MAPPING_FIELDS = [
   { key: 'inflow', label: 'Entrada (Apenas Créditos)', required: false },
   { key: 'outflow', label: 'Saída (Apenas Débitos)', required: false },
   { key: 'chart_account_code', label: 'Plano de Contas (Código)', required: false },
+  { key: 'cost_center_code', label: 'Centro de Custo (Código)', required: false },
 ]
 
 export default function ImportPage({ accountType }: { accountType?: string }) {
@@ -522,14 +524,25 @@ export default function ImportPage({ accountType }: { accountType?: string }) {
                   className="mt-2 text-xs text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
                   onClick={(e) => {
                     e.stopPropagation()
-                    const csv = 'date,description,amount,currency,fx_rate\n2026-01-15,Grocery Store,-120.50,USD,\n2026-01-20,Salary Payment,5000.00,EUR,1.08\n'
-                    const blob = new Blob([csv], { type: 'text/csv' })
-                    const url = URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = 'template.csv'
-                    a.click()
-                    URL.revokeObjectURL(url)
+                    const worksheet = XLSX.utils.json_to_sheet([
+                      { 
+                        'Data': '15/01/2026', 
+                        'Descrição': 'Supermercado', 
+                        'Valor': -120.50, 
+                        'Plano de Contas': 1.01,
+                        'Centro de Custo': 2
+                      },
+                      { 
+                        'Data': '20/01/2026', 
+                        'Descrição': 'Pagamento Salário', 
+                        'Valor': 5000.00, 
+                        'Plano de Contas': 3.01,
+                        'Centro de Custo': 1
+                      }
+                    ])
+                    const workbook = XLSX.utils.book_new()
+                    XLSX.utils.book_append_sheet(workbook, worksheet, "Template")
+                    XLSX.writeFile(workbook, "template_importacao.xlsx")
                   }}
                 >
                   <Download size={12} />

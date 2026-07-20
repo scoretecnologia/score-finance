@@ -81,10 +81,10 @@ def require_role(*allowed_roles: str):
         db: Annotated[AsyncSession, Depends(get_async_session)],
     ) -> Company:
         if current_user.is_superuser:
-            result = await db.execute(select(Company).where(Company.id == company_id))
+            result = await db.execute(select(Company).where(Company.id == company_id, Company.is_active == True))
             company = result.scalar_one_or_none()
             if not company:
-                raise HTTPException(status_code=404, detail="Empresa não encontrada.")
+                raise HTTPException(status_code=404, detail="Empresa não encontrada ou inativa.")
             return company
 
         result = await db.execute(
@@ -109,7 +109,10 @@ def require_role(*allowed_roles: str):
                 detail=f"Esta ação requer um dos seguintes papéis: {', '.join(allowed_roles)}.",
             )
 
-        result = await db.execute(select(Company).where(Company.id == company_id))
-        return result.scalar_one()
+        result = await db.execute(select(Company).where(Company.id == company_id, Company.is_active == True))
+        company = result.scalar_one_or_none()
+        if not company:
+            raise HTTPException(status_code=404, detail="Empresa não encontrada ou inativa.")
+        return company
 
     return dependency

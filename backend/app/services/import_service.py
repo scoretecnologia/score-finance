@@ -252,6 +252,7 @@ def parse_csv(
     outflow_column: str | None = None,
     column_mapping: dict | None = None,
     chart_account_map: dict | None = None,
+    cost_center_map: dict | None = None,
 ) -> list[TransactionBase]:
     """Parse CSV file content and return transactions.
 
@@ -313,6 +314,7 @@ def parse_csv(
         external_id_col = _get_mapped_col('external_id')
         payee_col = _get_mapped_col('payee')
         chart_account_code_col = _get_mapped_col('chart_account_code')
+        cost_center_code_col = _get_mapped_col('cost_center_code')
         use_split = bool(inflow_col and outflow_col)
     else:
         # Map common column names
@@ -337,6 +339,7 @@ def parse_csv(
         type_col = find_col(type_cols)
         payee_col = find_col(payee_cols)
         chart_account_code_col = None
+        cost_center_code_col = None
 
         # In split mode, we don't require a single amount column
         use_split = inflow_column and outflow_column
@@ -480,10 +483,26 @@ def parse_csv(
                         txn_chart_account_id = chart_account_map[code_lower]
                     else:
                         if not import_error:
-                            import_error = f"Plano de contas código '{code_val}' não encontrado"
+                            keys = list(chart_account_map.keys())[:5]
+                            import_error = f"Plano de contas código '{code_val}' não encontrado. Chaves: {keys}"
                 else:
                     if not import_error:
                         import_error = f"Código '{code_val}' fornecido mas o mapa de contas está vazio"
+
+        txn_cost_center_id = None
+        if cost_center_code_col and cost_center_code_col in row and row[cost_center_code_col]:
+            code_val = row[cost_center_code_col].strip()
+            if code_val:
+                if cost_center_map is not None:
+                    code_lower = code_val.lower()
+                    if code_lower in cost_center_map:
+                        txn_cost_center_id = cost_center_map[code_lower]
+                    else:
+                        if not import_error:
+                            import_error = f"Centro de custo código '{code_val}' não encontrado"
+                else:
+                    if not import_error:
+                        import_error = f"Código '{code_val}' fornecido mas o mapa de centro de custo está vazio"
 
         transactions.append(TransactionBase(
             description=description,
@@ -495,6 +514,7 @@ def parse_csv(
             external_id=txn_external_id,
             payee_raw=txn_payee,
             chart_account_id=txn_chart_account_id,
+            cost_center_id=txn_cost_center_id,
             import_error=import_error,
         ))
 
@@ -605,6 +625,8 @@ async def import_transactions(
             currency=txn_currency,
             payee=import_payee_raw,
             payee_id=import_payee_id,
+            chart_account_id=txn_data.chart_account_id,
+            cost_center_id=txn_data.cost_center_id,
             created_at=base_time - timedelta(seconds=idx),
         )
         apply_effective_date(transaction, account)
@@ -763,6 +785,8 @@ async def import_transactions_streamed(
             currency=txn_currency,
             payee=import_payee_raw,
             payee_id=import_payee_id,
+            chart_account_id=txn_data.chart_account_id,
+            cost_center_id=txn_data.cost_center_id,
             created_at=base_time - timedelta(seconds=idx),
         )
         apply_effective_date(transaction, account)
@@ -926,6 +950,7 @@ def parse_excel(
     outflow_column: str | None = None,
     column_mapping: dict | None = None,
     chart_account_map: dict | None = None,
+    cost_center_map: dict | None = None,
 ) -> list[TransactionBase]:
     """Parse XLS or XLSX file content and return transactions."""
     rows = []
@@ -982,28 +1007,31 @@ def parse_excel(
     origem_col_idx = -1
     destino_col_idx = -1
     chart_account_code_col_idx = -1
+    cost_center_code_col_idx = -1
 
     if column_mapping and rows:
         header_idx = 0
         normalized_row = [_normalize_header(cell) for cell in rows[0]]
 
-        def _get_mapped_col_idx(key: str):
+        def get_col_idx(key: str):
             val = column_mapping.get(key)
             if not val: return -1
             norm_val = _normalize_header(val)
             return normalized_row.index(norm_val) if norm_val in normalized_row else -1
 
-        date_col_idx = _get_mapped_col_idx('date')
-        desc_col_idx = _get_mapped_col_idx('description')
-        amount_col_idx = _get_mapped_col_idx('amount')
-        inflow_col_idx = _get_mapped_col_idx('inflow')
-        outflow_col_idx = _get_mapped_col_idx('outflow')
-        type_col_idx = _get_mapped_col_idx('type')
-        currency_col_idx = _get_mapped_col_idx('currency')
-        fx_rate_col_idx = _get_mapped_col_idx('fx_rate')
-        external_id_col_idx = _get_mapped_col_idx('external_id')
-        payee_col_idx = _get_mapped_col_idx('payee')
-        chart_account_code_col_idx = _get_mapped_col_idx('chart_account_code')
+        date_col_idx = get_col_idx('date')
+        desc_col_idx = get_col_idx('description')
+        amount_col_idx = get_col_idx('amount')
+        inflow_col_idx = get_col_idx('inflow')
+        outflow_col_idx = get_col_idx('outflow')
+        type_col_idx = get_col_idx('type')
+        currency_col_idx = get_col_idx('currency')
+        fx_rate_col_idx = get_col_idx('fx_rate')
+        external_id_col_idx = get_col_idx('external_id')
+        payee_col_idx = get_col_idx('payee')
+        chart_account_code_col_idx = get_col_idx('chart_account_code')
+        cost_center_code_col_idx = get_col_idx('cost_center_code')
+        use_split = bool(inflow_col_idx != -1 and outflow_col_idx != -1)
     else:
         for idx, row in enumerate(rows):
             normalized_row = [_normalize_header(cell) for cell in row]
@@ -1139,10 +1167,32 @@ def parse_excel(
                         txn_chart_account_id = chart_account_map[code_lower]
                     else:
                         if not import_error:
-                            import_error = f"Plano de contas código '{code_str}' não encontrado"
+                            keys = list(chart_account_map.keys())[:5]
+                            import_error = f"Plano de contas código '{code_str}' não encontrado. Chaves: {keys}"
                 else:
                     if not import_error:
-                        import_error = f"Código '{code_str}' fornecido mas o mapa de contas está vazio"
+                        comp_name = getattr(chart_account_map, "company_name_debug", "Desconhecida")
+                        import_error = f"Código '{code_str}' fornecido mas o mapa de contas está vazio para empresa: {comp_name}"
+
+        txn_cost_center_id = None
+        if cost_center_code_col_idx != -1 and cost_center_code_col_idx < len(row):
+            cc_code_val = row[cost_center_code_col_idx]
+            if cc_code_val is not None and str(cc_code_val).strip():
+                if isinstance(cc_code_val, float) and cc_code_val.is_integer():
+                    cc_code_str = str(int(cc_code_val)).strip()
+                else:
+                    cc_code_str = str(cc_code_val).strip()
+                
+                if cost_center_map is not None:
+                    cc_code_lower = cc_code_str.lower()
+                    if cc_code_lower in cost_center_map:
+                        txn_cost_center_id = cost_center_map[cc_code_lower]
+                    else:
+                        if not import_error:
+                            import_error = f"Centro de custo código '{cc_code_str}' não encontrado"
+                else:
+                    if not import_error:
+                        import_error = f"Código '{cc_code_str}' fornecido mas o mapa de centros de custo está vazio"
 
         transactions.append(TransactionBase(
             description=desc,
@@ -1154,6 +1204,7 @@ def parse_excel(
             external_id=txn_external_id,
             payee_raw=txn_payee,
             chart_account_id=txn_chart_account_id,
+            cost_center_id=txn_cost_center_id,
             import_error=import_error,
         ))
     return transactions

@@ -886,6 +886,10 @@ export const admin = {
     const { data } = await api.get('/admin/companies')
     return data
   },
+  updateCompany: async (id: string, data: { is_active: boolean }): Promise<any> => {
+    const { data: responseData } = await api.patch(`/admin/companies/${id}`, data)
+    return responseData
+  },
 }
 
 // Global search (powers the command palette)

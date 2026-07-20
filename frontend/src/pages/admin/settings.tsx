@@ -33,6 +33,7 @@ export default function AdminSettingsPage() {
   const [createCompanyOpen, setCreateCompanyOpen] = useState(false)
   const [editUser, setEditUser] = useState<AdminUser | null>(null)
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null)
+  const [confirmCompanyToggle, setConfirmCompanyToggle] = useState<any | null>(null)
 
   const [formEmail, setFormEmail] = useState('')
   const [formName, setFormName] = useState('')
@@ -85,6 +86,18 @@ export default function AdminSettingsPage() {
       setFormCompanyName('')
       setFormCompanyCnpj('')
       toast.success('Empresa criada com sucesso!')
+    },
+    onError: () => {
+      toast.error(t('common.error'))
+    },
+  })
+
+  const updateCompanyMutation = useMutation({
+    mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) => adminApi.updateCompany(id, { is_active }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'companies'] })
+      setConfirmCompanyToggle(null)
+      toast.success('Status da empresa atualizado.')
     },
     onError: () => {
       toast.error(t('common.error'))
@@ -316,8 +329,18 @@ export default function AdminSettingsPage() {
                   <Button 
                     variant="outline" 
                     size="sm" 
+                    className={`text-xs h-8 ${c.is_active ? 'text-destructive hover:bg-destructive/10' : 'text-emerald-500 hover:bg-emerald-500/10'}`}
+                    onClick={() => setConfirmCompanyToggle(c)}
+                    disabled={updateCompanyMutation.isPending}
+                  >
+                    {c.is_active ? 'Desativar' : 'Ativar'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
                     className="text-xs h-8"
                     onClick={() => switchCompany({ ...c, role: 'owner' })}
+                    disabled={!c.is_active}
                   >
                     Acessar painel
                     <ExternalLink size={12} className="ml-1.5" />
@@ -629,6 +652,33 @@ export default function AdminSettingsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Toggle Company Status Confirmation Dialog */}
+      <Dialog open={!!confirmCompanyToggle} onOpenChange={(open) => !open && setConfirmCompanyToggle(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{confirmCompanyToggle?.is_active ? 'Desativar Empresa' : 'Reativar Empresa'}</DialogTitle>
+            <DialogDescription>
+              {confirmCompanyToggle?.is_active 
+                ? `Tem certeza que deseja desativar a empresa "${confirmCompanyToggle?.name}"? Os membros perderão o acesso imediatamente.` 
+                : `Tem certeza que deseja reativar a empresa "${confirmCompanyToggle?.name}"? Os membros voltarão a ter acesso.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setConfirmCompanyToggle(null)} className="rounded-lg">
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant={confirmCompanyToggle?.is_active ? 'destructive' : 'default'}
+              disabled={updateCompanyMutation.isPending}
+              onClick={() => confirmCompanyToggle && updateCompanyMutation.mutate({ id: confirmCompanyToggle.id, is_active: !confirmCompanyToggle.is_active })}
+              className={`rounded-lg ${!confirmCompanyToggle?.is_active ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+            >
+              {updateCompanyMutation.isPending ? t('common.loading') : confirmCompanyToggle?.is_active ? 'Desativar' : 'Reativar'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
