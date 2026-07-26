@@ -886,7 +886,7 @@ export const admin = {
     const { data } = await api.get('/admin/companies')
     return data
   },
-  updateCompany: async (id: string, data: { is_active: boolean }): Promise<any> => {
+  updateCompany: async (id: string, data: { name?: string; cnpj?: string; is_active?: boolean }): Promise<any> => {
     const { data: responseData } = await api.patch(`/admin/companies/${id}`, data)
     return responseData
   },

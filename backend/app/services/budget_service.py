@@ -101,20 +101,27 @@ async def get_budgets(
         )
     )
     overrides = list(overrides_result.scalars().all())
-    override_category_ids = {str(b.category_id) for b in overrides}
+    override_keys = {
+        str(b.chart_account_id or b.category_id)
+        for b in overrides
+        if (b.chart_account_id or b.category_id)
+    }
 
-    # Get effective recurring defaults for this month
+    # Get effective recurring defaults for this month using coalesce(chart_account_id, category_id)
+    key_expr = func.coalesce(Budget.chart_account_id, Budget.category_id)
+
     max_month_subq = (
         select(
-            Budget.category_id,
+            key_expr.label("item_key"),
             func.max(Budget.month).label("max_month"),
         )
         .where(
             Budget.company_id == company_id,
             Budget.is_recurring == True,  # noqa: E712
             Budget.month <= month_start,
+            key_expr.isnot(None),
         )
-        .group_by(Budget.category_id)
+        .group_by(key_expr)
         .subquery()
     )
 
@@ -123,7 +130,7 @@ async def get_budgets(
         .join(
             max_month_subq,
             and_(
-                Budget.category_id == max_month_subq.c.category_id,
+                func.coalesce(Budget.chart_account_id, Budget.category_id) == max_month_subq.c.item_key,
                 Budget.month == max_month_subq.c.max_month,
             ),
         )
@@ -134,7 +141,7 @@ async def get_budgets(
     )
     recurring = [
         b for b in recurring_result.scalars().all()
-        if str(b.category_id) not in override_category_ids
+        if str(b.chart_account_id or b.category_id) not in override_keys
     ]
 
     return sorted(overrides + recurring, key=lambda b: b.month, reverse=True)

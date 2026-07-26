@@ -14,13 +14,16 @@ interface ChartAccountSelectProps extends Omit<React.SelectHTMLAttributes<HTMLSe
   disabled?: boolean
 }
 
-export function ChartAccountSelect({ className, value, onChange, disabled }: ChartAccountSelectProps) {
+export function ChartAccountSelect({ className, value: propValue, onChange, disabled, name }: ChartAccountSelectProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [internalValue, setInternalValue] = useState('')
   const { data: groups } = useQuery({
     queryKey: ['category-groups'],
     queryFn: groupsApi.list,
   })
+
+  const value = propValue !== undefined ? propValue : internalValue
 
   let selectedName = ''
   if (value) {
@@ -37,9 +40,12 @@ export function ChartAccountSelect({ className, value, onChange, disabled }: Cha
   }
 
   const handleSelect = (currentValue: string) => {
+    if (propValue === undefined) {
+      setInternalValue(currentValue)
+    }
     if (onChange) {
       const event = {
-        target: { value: currentValue }
+        target: { value: currentValue, name }
       } as React.ChangeEvent<HTMLSelectElement>
       onChange(event)
     }
@@ -47,7 +53,9 @@ export function ChartAccountSelect({ className, value, onChange, disabled }: Cha
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal={true}>
+    <>
+      {name && <input type="hidden" name={name} value={value || ''} />}
+      <Popover open={open} onOpenChange={setOpen} modal={true}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -131,5 +139,6 @@ export function ChartAccountSelect({ className, value, onChange, disabled }: Cha
         </Command>
       </PopoverContent>
     </Popover>
+  </>
   )
 }

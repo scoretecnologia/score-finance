@@ -19,7 +19,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { PageHeader } from '@/components/page-header'
-import { Search, Plus, Trash2, Shield, ShieldOff, UserCog, Users, Scale, Building2, ExternalLink } from 'lucide-react'
+import { Search, Plus, Trash2, Shield, ShieldOff, UserCog, Users, Scale, Building2, ExternalLink, Pencil } from 'lucide-react'
 import type { AdminUser } from '@/types'
 import { useCompany } from '@/contexts/company-context'
 
@@ -34,6 +34,9 @@ export default function AdminSettingsPage() {
   const [editUser, setEditUser] = useState<AdminUser | null>(null)
   const [deleteUser, setDeleteUser] = useState<AdminUser | null>(null)
   const [confirmCompanyToggle, setConfirmCompanyToggle] = useState<any | null>(null)
+  const [editCompanyModal, setEditCompanyModal] = useState<any | null>(null)
+  const [editCompanyName, setEditCompanyName] = useState('')
+  const [editCompanyCnpj, setEditCompanyCnpj] = useState('')
 
   const [formEmail, setFormEmail] = useState('')
   const [formName, setFormName] = useState('')
@@ -98,6 +101,20 @@ export default function AdminSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'companies'] })
       setConfirmCompanyToggle(null)
       toast.success('Status da empresa atualizado.')
+    },
+    onError: () => {
+      toast.error(t('common.error'))
+    },
+  })
+
+  const editCompanyDataMutation = useMutation({
+    mutationFn: ({ id, name, cnpj }: { id: string; name: string; cnpj?: string }) =>
+      adminApi.updateCompany(id, { name, cnpj }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'companies'] })
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
+      setEditCompanyModal(null)
+      toast.success('Empresa atualizada com sucesso!')
     },
     onError: () => {
       toast.error(t('common.error'))
@@ -314,6 +331,18 @@ export default function AdminSettingsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-foreground truncate">{c.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditCompanyModal(c)
+                        setEditCompanyName(c.name)
+                        setEditCompanyCnpj(c.cnpj || '')
+                      }}
+                      className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="Editar empresa"
+                    >
+                      <Pencil size={13} />
+                    </button>
                     {!c.is_active && (
                       <Badge variant="secondary" className="text-[10px] font-medium">Inativa</Badge>
                     )}
@@ -679,6 +708,43 @@ export default function AdminSettingsPage() {
               {updateCompanyMutation.isPending ? t('common.loading') : confirmCompanyToggle?.is_active ? 'Desativar' : 'Reativar'}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Edit Company Dialog */}
+      <Dialog open={!!editCompanyModal} onOpenChange={(open) => !open && setEditCompanyModal(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Empresa</DialogTitle>
+            <DialogDescription>Altere o nome e o CNPJ da empresa.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault()
+            if (!editCompanyModal || !editCompanyName.trim()) return
+            editCompanyDataMutation.mutate({
+              id: editCompanyModal.id,
+              name: editCompanyName.trim(),
+              cnpj: editCompanyCnpj.trim() || undefined,
+            })
+          }}>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Nome da Empresa</Label>
+                <Input value={editCompanyName} onChange={(e) => setEditCompanyName(e.target.value)} required className="h-10 rounded-lg" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">CNPJ (Opcional)</Label>
+                <Input value={editCompanyCnpj} onChange={(e) => setEditCompanyCnpj(e.target.value)} className="h-10 rounded-lg" placeholder="00.000.000/0001-00" />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" type="button" onClick={() => setEditCompanyModal(null)} className="rounded-lg">
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" disabled={editCompanyDataMutation.isPending} className="rounded-lg">
+                {editCompanyDataMutation.isPending ? t('common.loading') : t('common.save')}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

@@ -50,4 +50,6 @@ class AppSettingUpdate(BaseModel):
 
 
 class AdminCompanyUpdate(BaseModel):
-    is_active: bool
+    name: Optional[str] = None
+    cnpj: Optional[str] = None
+    is_active: Optional[bool] = None

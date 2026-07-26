@@ -191,14 +191,26 @@ async def admin_update_company(
     session: AsyncSession = Depends(get_async_session),
     _user: User = Depends(current_superuser),
 ):
-    """Atualiza dados de uma empresa no nível administrativo (ex: desativar)."""
+    """Atualiza dados de uma empresa no nível administrativo (ex: nome, CNPJ, desativar)."""
     company = await session.get(Company, company_id)
     if not company:
         raise HTTPException(status_code=404, detail="Empresa não encontrada.")
-    company.is_active = data.is_active
+    if data.name is not None:
+        company.name = data.name
+    if data.cnpj is not None:
+        company.cnpj = data.cnpj
+    if data.is_active is not None:
+        company.is_active = data.is_active
     await session.commit()
     await session.refresh(company)
-    return {"id": company.id, "is_active": company.is_active}
+    return {
+        "id": company.id,
+        "name": company.name,
+        "cnpj": company.cnpj,
+        "is_active": company.is_active,
+        "plan": company.plan,
+        "created_at": company.created_at,
+    }
 
 
 async def check_registration_enabled(

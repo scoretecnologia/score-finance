@@ -33,7 +33,7 @@ async def get_current_company(
     """
     # Se o usuário for master (superuser), ele tem acesso irrestrito a todas as empresas
     if current_user.is_superuser:
-        result = await db.execute(select(Company).where(Company.id == company_id, Company.is_active == True))
+        result = await db.execute(select(Company).where(Company.id == company_id))
         company = result.scalar_one_or_none()
         if not company:
             raise HTTPException(status_code=404, detail="Empresa não encontrada.")
@@ -81,10 +81,10 @@ def require_role(*allowed_roles: str):
         db: Annotated[AsyncSession, Depends(get_async_session)],
     ) -> Company:
         if current_user.is_superuser:
-            result = await db.execute(select(Company).where(Company.id == company_id, Company.is_active == True))
+            result = await db.execute(select(Company).where(Company.id == company_id))
             company = result.scalar_one_or_none()
             if not company:
-                raise HTTPException(status_code=404, detail="Empresa não encontrada ou inativa.")
+                raise HTTPException(status_code=404, detail="Empresa não encontrada.")
             return company
 
         result = await db.execute(

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Users, UserPlus, Trash2, Shield, Crown, Eye, User } from 'lucide-react'
+import { UserPlus, Trash2, Shield, Crown, Eye, User, Pencil, Building2 } from 'lucide-react'
 import { companies as companiesApi } from '@/lib/api'
 import { useCompany } from '@/contexts/company-context'
 import type { CompanyMember } from '@/types'
@@ -45,12 +45,28 @@ export default function CompanyMembersPage() {
   const [showCreateFields, setShowCreateFields] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<CompanyMember | null>(null)
 
+  const [editCompanyOpen, setEditCompanyOpen] = useState(false)
+  const [editCompanyName, setEditCompanyName] = useState('')
+  const [editCompanyCnpj, setEditCompanyCnpj] = useState('')
+
   const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
 
   const { data: members = [], isLoading } = useQuery({
     queryKey: ['company-members', currentCompany?.id],
     queryFn: () => companiesApi.members.list(currentCompany!.id),
     enabled: !!currentCompany,
+  })
+
+  const updateCompanyMutation = useMutation({
+    mutationFn: ({ name, cnpj }: { name: string; cnpj?: string }) =>
+      companiesApi.update(currentCompany!.id, { name, cnpj }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
+      queryClient.invalidateQueries({ queryKey: ['company-members'] })
+      setEditCompanyOpen(false)
+      toast.success('Empresa atualizada com sucesso!')
+    },
+    onError: () => toast.error('Erro ao atualizar empresa.'),
   })
 
   const removeMutation = useMutation({
@@ -102,14 +118,31 @@ export default function CompanyMembersPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Users className="w-6 h-6 text-primary" />
-          Membros da Empresa
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Gerencie quem tem acesso à <strong>{currentCompany.name}</strong>.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Building2 className="w-6 h-6 text-primary" />
+              {currentCompany.name}
+            </h1>
+            {canManage && (
+              <button
+                onClick={() => {
+                  setEditCompanyName(currentCompany.name)
+                  setEditCompanyCnpj(currentCompany.cnpj || '')
+                  setEditCompanyOpen(true)
+                }}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Editar nome da empresa"
+              >
+                <Pencil className="w-4.5 h-4.5" />
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Gerencie os membros e configurações de <strong>{currentCompany.name}</strong>.
+          </p>
+        </div>
       </div>
 
       {/* Invite Form */}
@@ -278,6 +311,62 @@ export default function CompanyMembersPage() {
               Remover
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Company Dialog */}
+      <Dialog open={editCompanyOpen} onOpenChange={setEditCompanyOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-4 h-4 text-primary" />
+              Editar Empresa
+            </DialogTitle>
+            <DialogDescription>
+              Altere o nome e os dados da empresa.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!editCompanyName.trim()) return
+              updateCompanyMutation.mutate({
+                name: editCompanyName.trim(),
+                cnpj: editCompanyCnpj.trim() || undefined,
+              })
+            }}
+          >
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">Nome da Empresa</label>
+                <input
+                  type="text"
+                  value={editCompanyName}
+                  onChange={(e) => setEditCompanyName(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground">CNPJ (Opcional)</label>
+                <input
+                  type="text"
+                  value={editCompanyCnpj}
+                  onChange={(e) => setEditCompanyCnpj(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  placeholder="00.000.000/0001-00"
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4 gap-2">
+              <Button variant="outline" type="button" onClick={() => setEditCompanyOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={updateCompanyMutation.isPending}>
+                {updateCompanyMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

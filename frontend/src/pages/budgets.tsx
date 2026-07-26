@@ -68,6 +68,7 @@ export default function BudgetsPage() {
   const monthParam = `${selectedMonth}-01`
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Budget | null>(null)
+  const [chartAccountId, setChartAccountId] = useState('')
 
   const { data: budgetsList } = useQuery({
     queryKey: ['budgets', selectedMonth],
@@ -85,6 +86,7 @@ export default function BudgetsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
       setDialogOpen(false)
+      setChartAccountId('')
       toast.success(t('budgets.created'))
     },
     onError: () => toast.error(t('common.error')),
@@ -97,6 +99,7 @@ export default function BudgetsPage() {
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
       setDialogOpen(false)
       setEditing(null)
+      setChartAccountId('')
       toast.success(t('budgets.updated'))
     },
     onError: () => toast.error(t('common.error')),
@@ -110,7 +113,8 @@ export default function BudgetsPage() {
     },
   })
 
-  const getCategoryDisplay = (id: string) => {
+  const getCategoryDisplay = (id?: string | null) => {
+    if (!id) return <span>-</span>
     const acc = chartAccountsList?.find((c) => c.id === id)
     if (acc) {
       return (
@@ -181,7 +185,7 @@ export default function BudgetsPage() {
           title={t('budgets.title')}
           action={
             canManage && (
-              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setDialogOpen(true) }}>
+              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setChartAccountId(''); setDialogOpen(true) }}>
                 <Plus size={13} /> {t('budgets.add')}
               </Button>
             )
@@ -201,7 +205,7 @@ export default function BudgetsPage() {
                 <tr key={budget.id} className="border-b border-border last:border-0 hover:bg-muted transition-colors">
                   <td className="py-3 pl-4 sm:pl-5 text-sm font-medium text-foreground">
                     <span className="flex items-center gap-1.5">
-                      {getCategoryDisplay(budget.category_id)}
+                      {getCategoryDisplay(budget.chart_account_id || budget.category_id)}
                       {budget.is_recurring && (
                         <span title={t('budgets.recurringLabel')} className="text-muted-foreground">
                           <Repeat size={12} />
@@ -215,7 +219,7 @@ export default function BudgetsPage() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           className="p-1.5 rounded-md text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-                          onClick={() => { setEditing(budget); setDialogOpen(true) }}
+                          onClick={() => { setEditing(budget); setChartAccountId(budget.chart_account_id || budget.category_id || ''); setDialogOpen(true) }}
                         >
                           <Pencil size={13} />
                         </button>
@@ -238,7 +242,7 @@ export default function BudgetsPage() {
         )}
       </SectionCard>
 
-      <Dialog open={dialogOpen} onOpenChange={() => { setDialogOpen(false); setEditing(null) }}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditing(null); setChartAccountId('') } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? t('budgets.edit') : t('budgets.add')}</DialogTitle>
@@ -254,9 +258,14 @@ export default function BudgetsPage() {
                   amount: parseFloat(formData.get('amount') as string),
                 })
               } else {
+                const selectedCat = chartAccountId || (formData.get('chart_account_id') as string)
+                if (!selectedCat) {
+                  toast.error(t('transactions.noCategory'))
+                  return
+                }
                 const isRecurring = formData.get('is_recurring') === 'on'
                 createMutation.mutate({
-                  chart_account_id: formData.get('chart_account_id') as string,
+                  chart_account_id: selectedCat,
                   amount: parseFloat(formData.get('amount') as string),
                   month: monthParam,
                   is_recurring: isRecurring,
@@ -271,8 +280,9 @@ export default function BudgetsPage() {
                   <Label>{t('budgets.category')}</Label>
                   <ChartAccountSelect
                     name="chart_account_id"
+                    value={chartAccountId}
+                    onChange={(e) => setChartAccountId(e.target.value)}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                    required
                   />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -292,7 +302,7 @@ export default function BudgetsPage() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditing(null) }}>
+              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditing(null); setChartAccountId('') }}>
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
