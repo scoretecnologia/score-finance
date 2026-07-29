@@ -658,16 +658,16 @@ export const budgets = {
     const { data } = await api.get('/budgets', { params: { month } })
     return data
   },
-  create: async (budget: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean }): Promise<Budget> => {
+  create: async (budget: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean; recurrence_end?: string }): Promise<Budget> => {
     const { data } = await api.post('/budgets', budget)
     return data
   },
-  update: async (id: string, budget: { amount?: number }): Promise<Budget> => {
+  update: async (id: string, budget: { amount?: number; recurrence_end?: string }): Promise<Budget> => {
     const { data } = await api.patch(`/budgets/${id}`, budget)
     return data
   },
-  delete: async (id: string): Promise<void> => {
-    await api.delete(`/budgets/${id}`)
+  delete: async (id: string, month?: string): Promise<void> => {
+    await api.delete(`/budgets/${id}`, { params: { month } })
   },
   comparison: async (month?: string): Promise<BudgetVsActual[]> => {
     const { data } = await api.get('/budgets/comparison', { params: { month } })

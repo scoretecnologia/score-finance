@@ -12,11 +12,13 @@ class BudgetCreate(BaseModel):
     amount: Decimal
     month: _Date  # First day of month
     is_recurring: bool = False
+    recurrence_end: Optional[_Date] = None
 
 
 class BudgetUpdate(BaseModel):
     amount: Optional[Decimal] = None
     effective_month: Optional[_Date] = None
+    recurrence_end: Optional[_Date] = None
 
 
 class BudgetRead(BaseModel):
@@ -27,6 +29,7 @@ class BudgetRead(BaseModel):
     amount: Decimal
     month: _Date
     is_recurring: bool
+    recurrence_end: Optional[_Date] = None
 
     model_config = ConfigDict(from_attributes=True)
 

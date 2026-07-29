@@ -56,11 +56,12 @@ async def update_budget(
 @router.delete("/{budget_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_budget(
     budget_id: uuid.UUID,
+    month: Optional[date] = Query(None),
     session: AsyncSession = Depends(get_async_session),
     user: User = Depends(current_active_user),
     company: Company = Depends(require_role("owner", "admin")),
 ):
-    deleted = await budget_service.delete_budget(session, budget_id, company.id)
+    deleted = await budget_service.delete_budget(session, budget_id, company.id, month)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Budget not found")
 

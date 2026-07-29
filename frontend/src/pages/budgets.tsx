@@ -69,6 +69,8 @@ export default function BudgetsPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Budget | null>(null)
   const [chartAccountId, setChartAccountId] = useState('')
+  const [isRecurring, setIsRecurring] = useState(false)
+  const [budgetToDelete, setBudgetToDelete] = useState<Budget | null>(null)
 
   const { data: budgetsList } = useQuery({
     queryKey: ['budgets', selectedMonth],
@@ -81,7 +83,7 @@ export default function BudgetsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean }) =>
+    mutationFn: (data: { category_id?: string; chart_account_id?: string; amount: number; month: string; is_recurring?: boolean; recurrence_end?: string }) =>
       budgetsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
@@ -106,7 +108,7 @@ export default function BudgetsPage() {
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => budgetsApi.delete(id),
+    mutationFn: ({ id, month }: { id: string; month?: string }) => budgetsApi.delete(id, month),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budgets'] })
       toast.success(t('budgets.deleted'))
@@ -185,7 +187,7 @@ export default function BudgetsPage() {
           title={t('budgets.title')}
           action={
             canManage && (
-              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setChartAccountId(''); setDialogOpen(true) }}>
+              <Button size="sm" className="gap-1.5 h-8" onClick={() => { setEditing(null); setChartAccountId(''); setIsRecurring(false); setDialogOpen(true) }}>
                 <Plus size={13} /> {t('budgets.add')}
               </Button>
             )
@@ -225,7 +227,9 @@ export default function BudgetsPage() {
                         </button>
                         <button
                           className="p-1.5 rounded-md text-muted-foreground hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                          onClick={() => deleteMutation.mutate(budget.id)}
+                          onClick={() => {
+                            setBudgetToDelete(budget)
+                          }}
                           disabled={deleteMutation.isPending}
                         >
                           <Trash2 size={13} />
@@ -242,7 +246,7 @@ export default function BudgetsPage() {
         )}
       </SectionCard>
 
-      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditing(null); setChartAccountId('') } }}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); setEditing(null); setChartAccountId(''); setIsRecurring(false); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editing ? t('budgets.edit') : t('budgets.add')}</DialogTitle>
@@ -263,12 +267,19 @@ export default function BudgetsPage() {
                   toast.error(t('transactions.noCategory'))
                   return
                 }
-                const isRecurring = formData.get('is_recurring') === 'on'
+                const isRec = formData.get('is_recurring') === 'on'
+                const endMonth = formData.get('recurrence_end_month') as string
+                const endYear = formData.get('recurrence_end_year') as string
+                let recurrence_end: string | undefined = undefined
+                if (isRec && endMonth && endYear) {
+                  recurrence_end = `${endYear}-${endMonth}-01`
+                }
                 createMutation.mutate({
                   chart_account_id: selectedCat,
                   amount: parseFloat(formData.get('amount') as string),
                   month: monthParam,
-                  is_recurring: isRecurring,
+                  is_recurring: isRec,
+                  recurrence_end,
                 })
               }
             }}
@@ -286,9 +297,54 @@ export default function BudgetsPage() {
                   />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="is_recurring" className="rounded border-border" />
+                  <input
+                    type="checkbox"
+                    name="is_recurring"
+                    checked={isRecurring}
+                    onChange={(e) => setIsRecurring(e.target.checked)}
+                    className="rounded border-border"
+                  />
                   <span className="text-sm text-foreground">{t('budgets.repeatEveryMonth')}</span>
                 </label>
+                {isRecurring && (
+                  <div className="space-y-2 border-l-2 border-primary/20 pl-3">
+                    <Label className="text-xs text-muted-foreground">Terminar repetição em (opcional)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Mês</Label>
+                        <select
+                          name="recurrence_end_month"
+                          className="w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="">Selecione...</option>
+                          {Array.from({ length: 12 }, (_, i) => {
+                            const d = new Date(2000, i, 1);
+                            const val = String(i + 1).padStart(2, '0');
+                            const label = d.toLocaleDateString(locale, { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+                            return (
+                              <option key={val} value={val}>{label}</option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Ano</Label>
+                        <select
+                          name="recurrence_end_year"
+                          className="w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <option value="">Selecione...</option>
+                          {(() => {
+                            const currentYear = new Date().getFullYear();
+                            return [currentYear, currentYear + 1, currentYear + 2].map(y => (
+                              <option key={y} value={y}>{y}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
             <div className="space-y-2">
@@ -302,7 +358,7 @@ export default function BudgetsPage() {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditing(null); setChartAccountId('') }}>
+              <Button type="button" variant="outline" onClick={() => { setDialogOpen(false); setEditing(null); setChartAccountId(''); setIsRecurring(false); }}>
                 {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending}>
@@ -310,6 +366,63 @@ export default function BudgetsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!budgetToDelete} onOpenChange={(open) => { if (!open) setBudgetToDelete(null) }}>
+        <DialogContent className="max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-sm text-muted-foreground">
+            {budgetToDelete?.is_recurring ? (
+              <>
+                Este é um orçamento recorrente. Deseja excluir este orçamento de <strong>todos os meses</strong> ou apenas de <strong>{monthTitle}</strong>?
+              </>
+            ) : (
+              <>
+                Tem certeza de que deseja excluir o orçamento de <strong>{monthTitle}</strong>? Esta ação não pode ser desfeita.
+              </>
+            )}
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBudgetToDelete(null)}
+            >
+              Cancelar
+            </Button>
+            {budgetToDelete?.is_recurring && (
+              <Button
+                type="button"
+                variant="outline"
+                className="border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                onClick={() => {
+                  if (budgetToDelete) {
+                    deleteMutation.mutate({ id: budgetToDelete.id, month: monthParam })
+                  }
+                  setBudgetToDelete(null)
+                }}
+                disabled={deleteMutation.isPending}
+              >
+                Apenas deste mês
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (budgetToDelete) {
+                  deleteMutation.mutate({ id: budgetToDelete.id })
+                }
+                setBudgetToDelete(null)
+              }}
+              disabled={deleteMutation.isPending}
+            >
+              {budgetToDelete?.is_recurring ? 'Todos os meses' : 'Excluir'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

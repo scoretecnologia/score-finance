@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.budget import Budget
@@ -44,6 +44,7 @@ async def _build_budget_map(
             Budget.company_id == company_id,
             Budget.is_recurring == True,  # noqa: E712
             Budget.month <= month_start,
+            or_(Budget.recurrence_end.is_(None), Budget.recurrence_end >= month_start),
             Budget.chart_account_id.isnot(None),
         )
         .group_by(Budget.chart_account_id)
@@ -119,6 +120,7 @@ async def get_budgets(
             Budget.company_id == company_id,
             Budget.is_recurring == True,  # noqa: E712
             Budget.month <= month_start,
+            or_(Budget.recurrence_end.is_(None), Budget.recurrence_end >= month_start),
             key_expr.isnot(None),
         )
         .group_by(key_expr)
@@ -166,6 +168,7 @@ async def create_budget(
         amount=data.amount,
         month=data.month.replace(day=1),
         is_recurring=data.is_recurring,
+        recurrence_end=data.recurrence_end.replace(day=1) if data.recurrence_end else None,
     )
     session.add(budget)
     await session.commit()
@@ -190,6 +193,7 @@ async def update_budget(
                 amount=data.amount if data.amount is not None else budget.amount,
                 month=effective,
                 is_recurring=True,
+                recurrence_end=data.recurrence_end.replace(day=1) if data.recurrence_end else budget.recurrence_end,
             )
             session.add(new_budget)
             await session.commit()
@@ -198,6 +202,8 @@ async def update_budget(
 
     # Update in place (non-recurring, or same effective-from month)
     for key, value in data.model_dump(exclude_unset=True, exclude={"effective_month"}).items():
+        if key == "recurrence_end" and value is not None:
+            value = value.replace(day=1)
         setattr(budget, key, value)
 
     await session.commit()
@@ -206,14 +212,71 @@ async def update_budget(
 
 
 async def delete_budget(
-    session: AsyncSession, budget_id: uuid.UUID, company_id: uuid.UUID
+    session: AsyncSession, budget_id: uuid.UUID, company_id: uuid.UUID, target_month: Optional[date] = None
 ) -> bool:
     budget = await get_budget(session, budget_id, company_id)
     if not budget:
         return False
 
-    await session.delete(budget)
-    await session.commit()
+    if not target_month or not budget.is_recurring:
+        # Delete from all months (standard delete)
+        await session.delete(budget)
+        await session.commit()
+        return True
+
+    # It is a recurring budget and we want to delete ONLY from target_month
+    target_month = target_month.replace(day=1)
+
+    if budget.month == target_month:
+        # The recurrence starts exactly in the target month.
+        # Shift the start date to the next month.
+        if target_month.month == 12:
+            next_month = target_month.replace(year=target_month.year + 1, month=1, day=1)
+        else:
+            next_month = target_month.replace(month=target_month.month + 1, day=1)
+
+        # If there's a recurrence_end and shifting puts it after the end, delete entirely.
+        if budget.recurrence_end and next_month > budget.recurrence_end:
+            await session.delete(budget)
+        else:
+            budget.month = next_month
+        await session.commit()
+        return True
+
+    if budget.month < target_month:
+        # Cap current recurrence at the previous month
+        if target_month.month == 1:
+            prev_month = target_month.replace(year=target_month.year - 1, month=12, day=1)
+        else:
+            prev_month = target_month.replace(month=target_month.month - 1, day=1)
+
+        original_recurrence_end = budget.recurrence_end
+        budget.recurrence_end = prev_month
+
+        # Spawn a new recurrence starting the month after target_month
+        if target_month.month == 12:
+            next_month = target_month.replace(year=target_month.year + 1, month=1, day=1)
+        else:
+            next_month = target_month.replace(month=target_month.month + 1, day=1)
+
+        if not original_recurrence_end or next_month <= original_recurrence_end:
+            new_budget = Budget(
+                company_id=budget.company_id,
+                category_id=budget.category_id,
+                chart_account_id=budget.chart_account_id,
+                amount=budget.amount,
+                month=next_month,
+                is_recurring=True,
+                recurrence_end=original_recurrence_end,
+                currency=budget.currency,
+                amount_primary=budget.amount_primary,
+            )
+            session.add(new_budget)
+
+        await session.commit()
+        return True
+
+    # target_month < budget.month, do nothing
     return True
 
 

@@ -312,9 +312,11 @@ export interface Budget {
   id: string
   user_id: string
   category_id: string
+  chart_account_id?: string | null
   amount: number
   month: string
   is_recurring: boolean
+  recurrence_end?: string | null
 }
 
 export interface BudgetVsActual {
