@@ -258,9 +258,11 @@ export default function AdminSettingsPage() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">{u.email}</span>
+                    <span className="text-sm font-medium text-foreground truncate">
+                      {u.name ? `${u.name} (${u.email})` : u.email}
+                    </span>
                     {isSelf(u) && (
-                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                      <span className="text-[10px] font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
                         {t('admin.users.you')}
                       </span>
                     )}

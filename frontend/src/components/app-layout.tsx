@@ -85,7 +85,6 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'assets',       path: '/assets',       icon: Landmark },
   { type: 'separator', labelKey: 'nav.groupSetup' },
   { type: 'link', key: 'budgets',      path: '/budgets',      icon: PiggyBank },
-  { type: 'link', key: 'goals',        path: '/goals',        icon: Target },
   { type: 'link', key: 'recurring',    path: '/recurring',    icon: Repeat },
   { type: 'link', key: 'categories',   path: '/categories',   icon: Tag },
   { type: 'link', key: 'costCenters',  path: '/cost-centers', icon: Building },

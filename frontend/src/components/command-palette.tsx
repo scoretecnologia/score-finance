@@ -55,7 +55,6 @@ const NAV_ITEMS: StaticItem[] = [
   { id: 'nav-reports', labelKey: 'nav.reports', icon: BarChart3, path: '/reports', keywords: ['relatorios', 'relatórios', 'charts'] },
   { id: 'nav-assets', labelKey: 'nav.assets', icon: Landmark, path: '/assets', keywords: ['patrimonio', 'patrimônio'] },
   { id: 'nav-budgets', labelKey: 'nav.budgets', icon: PiggyBank, path: '/budgets', keywords: ['orcamentos', 'orçamentos'] },
-  { id: 'nav-goals', labelKey: 'nav.goals', icon: Target, path: '/goals', keywords: ['metas'] },
   { id: 'nav-recurring', labelKey: 'nav.recurring', icon: Repeat, path: '/recurring', keywords: ['recorrentes'] },
   { id: 'nav-categories', labelKey: 'nav.categories', icon: Tag, path: '/categories', keywords: ['categorias'] },
   { id: 'nav-payees', labelKey: 'nav.payees', icon: Users, path: '/payees', keywords: ['fornecedores', 'fornecedor', 'beneficiarios', 'beneficiários'] },
@@ -83,13 +82,6 @@ const QUICK_ACTIONS: StaticItem[] = [
     icon: PiggyBank,
     onSelect: (nav) => nav('/budgets?new=1'),
     keywords: ['budget', 'orcamento'],
-  },
-  {
-    id: 'action-new-goal',
-    labelKey: 'cmdk.actions.newGoal',
-    icon: Target,
-    onSelect: (nav) => nav('/goals?new=1'),
-    keywords: ['goal', 'meta', 'target'],
   },
   {
     id: 'action-reports',
@@ -136,13 +128,6 @@ const ENTITY_META: Record<SearchHitType, { icon: React.ElementType; tintClass: s
     bgClass: 'bg-fuchsia-500/10',
     labelKey: 'cmdk.groups.categories',
     pathFor: (hit) => `/transactions?category_id=${hit.id}`,
-  },
-  goal: {
-    icon: Target,
-    tintClass: 'text-amber-500 dark:text-amber-300',
-    bgClass: 'bg-amber-500/10',
-    labelKey: 'cmdk.groups.goals',
-    pathFor: () => '/goals',
   },
   asset: {
     icon: Landmark,
@@ -531,7 +516,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   )}
 
                   {/* Entity results — highest priority when searching */}
-                  {(['transaction', 'account', 'payee', 'category', 'goal', 'asset'] as SearchHitType[]).map((type) => {
+                  {(['transaction', 'account', 'payee', 'category', 'asset'] as SearchHitType[]).map((type) => {
                     const items = grouped.get(type) ?? []
                     if (items.length === 0) return null
                     const meta = ENTITY_META[type]

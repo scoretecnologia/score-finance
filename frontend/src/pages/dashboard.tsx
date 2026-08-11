@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { ptBR, enUS } from 'date-fns/locale'
-import { dashboard, transactions, budgets, accounts as accountsApi, goals as goalsApi } from '@/lib/api'
+import { dashboard, transactions, budgets, accounts as accountsApi } from '@/lib/api'
 import { invalidateFinancialQueries } from '@/lib/invalidate-queries'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -142,11 +142,6 @@ export default function DashboardPage() {
   const { data: accountsList } = useQuery({
     queryKey: ['accounts'],
     queryFn: () => accountsApi.list(),
-  })
-
-  const { data: goalsSummary } = useQuery({
-    queryKey: ['goals', 'summary'],
-    queryFn: () => goalsApi.summary(3),
   })
 
   const updateMutation = useMutation({
@@ -768,77 +763,6 @@ export default function DashboardPage() {
           })()}
         </div>
       </div>
-
-      {/* Goals Progress Widget */}
-      {goalsSummary && goalsSummary.length > 0 && (
-        <div className="bg-card rounded-xl border border-border shadow-sm mb-5">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">{t('goals.dashboardTitle')}</p>
-            <Link to="/goals" className="text-xs font-medium text-primary hover:underline">
-              {t('goals.viewAll')} &rarr;
-            </Link>
-          </div>
-          <div className="divide-y divide-border">
-            {goalsSummary.map((goal) => {
-              const progressColor = goal.percentage >= 100
-                ? 'bg-emerald-500'
-                : goal.percentage >= 60
-                  ? 'bg-blue-500'
-                  : goal.percentage >= 30
-                    ? 'bg-amber-400'
-                    : 'bg-muted-foreground/30'
-              const onTrackConfig: Record<string, { cls: string; key: string }> = {
-                ahead: { cls: 'text-emerald-600', key: 'goals.onTrackAhead' },
-                on_track: { cls: 'text-blue-600', key: 'goals.onTrackOnTrack' },
-                behind: { cls: 'text-amber-600', key: 'goals.onTrackBehind' },
-                overdue: { cls: 'text-rose-600', key: 'goals.onTrackOverdue' },
-                achieved: { cls: 'text-emerald-600', key: 'goals.onTrackAchieved' },
-              }
-              const otc = goal.on_track ? onTrackConfig[goal.on_track] : null
-              const GoalIcon = (goal.icon && ICON_MAP[goal.icon]) || Target
-              return (
-                <div key={goal.id} className="px-5 py-3 flex items-center gap-4">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-white"
-                    style={{ backgroundColor: goal.color ?? '#6B7280' }}
-                  >
-                    <GoalIcon size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-sm font-medium text-foreground truncate">{goal.name}</span>
-                      <span className="text-xs font-bold tabular-nums text-foreground shrink-0">
-                        {mask(formatCurrency(goal.current_amount, goal.currency, locale))} / {mask(formatCurrency(goal.target_amount, goal.currency, locale))}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-muted/60 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${progressColor}`}
-                          style={{ width: `${Math.min(goal.percentage, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] font-bold tabular-nums text-muted-foreground shrink-0">
-                        {goal.percentage.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
-                      {goal.monthly_contribution != null && goal.monthly_contribution > 0 && (
-                        <span className="tabular-nums">
-                          {mask(formatCurrency(goal.monthly_contribution, goal.currency, locale))}{t('goals.perMonth')}
-                        </span>
-                      )}
-                      {otc && (
-                        <span className={`font-medium ${otc.cls}`}>{t(otc.key)}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Period Transactions */}
       <div>

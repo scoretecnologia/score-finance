@@ -25,7 +25,6 @@ const CategoriesPage = lazy(() => import('@/pages/categories'))
 const CostCentersPage = lazy(() => import('@/pages/cost-centers'))
 const BudgetsPage = lazy(() => import('@/pages/budgets'))
 const RecurringPage = lazy(() => import('@/pages/recurring'))
-const GoalsPage = lazy(() => import('@/pages/goals'))
 const AssetsPage = lazy(() => import('@/pages/assets'))
 const ReportsPage = lazy(() => import('@/pages/reports'))
 const PayeesPage = lazy(() => import('@/pages/payees'))
@@ -107,7 +106,6 @@ function App() {
                     <Route path="/categories" element={<CategoriesPage />} />
                     <Route path="/cost-centers" element={<CostCentersPage />} />
                     <Route path="/budgets" element={<BudgetsPage />} />
-                    <Route path="/goals" element={<GoalsPage />} />
                     <Route path="/recurring" element={<RecurringPage />} />
                     <Route path="/assets" element={<AssetsPage />} />
                     <Route path="/reports" element={<ReportsPage />} />
