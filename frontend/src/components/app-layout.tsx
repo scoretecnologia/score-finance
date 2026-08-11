@@ -38,7 +38,6 @@ import {
   ChevronRight,
   Tag,
   PiggyBank,
-  Target,
   Eye,
   EyeOff,
   Repeat,

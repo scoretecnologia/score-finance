@@ -27,9 +27,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts'
-import { CheckCircle2, CalendarIcon, Paperclip, Target, ArrowUpDown } from 'lucide-react'
-import { Link } from 'react-router-dom'
-import { ICON_MAP } from '@/lib/category-icons'
+import { CheckCircle2, CalendarIcon, Paperclip, ArrowUpDown } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { TransactionDrillDown, type DrillDownFilter } from '@/components/transaction-drill-down'

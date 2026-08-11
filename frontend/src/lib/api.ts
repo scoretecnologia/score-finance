@@ -898,7 +898,6 @@ export type SearchHitType =
   | 'account'
   | 'payee'
   | 'category'
-  | 'goal'
   | 'asset'
 
 export interface SearchHit {

@@ -14,7 +14,6 @@ import {
   SlidersHorizontal,
   Tag,
   PiggyBank,
-  Target,
   Repeat,
   Landmark,
   Users,
