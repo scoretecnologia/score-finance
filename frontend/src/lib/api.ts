@@ -31,6 +31,8 @@ import type {
   BalanceHistory,
   PaginatedResponse,
   ReportResponse,
+  DREResponse,
+  DREDrilldownResponse,
   CostCenter,
   CreditCardInvoice,
 } from '@/types'
@@ -771,6 +773,13 @@ export const assets = {
 }
 
 // Reports
+// O seletor de centro de custo usa 'all' como sentinela de "sem filtro". O backend valida
+// cost_center_id como UUID, entao esse valor precisa virar undefined antes de sair daqui.
+const stripCostCenterSentinel = <T extends { cost_center_id?: string }>(params: T): T =>
+  params.cost_center_id === 'all' || params.cost_center_id === ''
+    ? { ...params, cost_center_id: undefined }
+    : params
+
 export const reports = {
   netWorth: async (months = 12, interval = 'monthly'): Promise<ReportResponse> => {
     const { data } = await api.get('/reports/net-worth', { params: { months, interval } })
@@ -778,6 +787,20 @@ export const reports = {
   },
   incomeExpenses: async (months = 12, interval = 'monthly'): Promise<ReportResponse> => {
     const { data } = await api.get('/reports/income-expenses', { params: { months, interval } })
+    return data
+  },
+  dre: async (params?: { year?: number; regime?: 'competencia' | 'caixa'; cost_center_id?: string }): Promise<DREResponse> => {
+    const { data } = await api.get('/reports/dre', { params: params && stripCostCenterSentinel(params) })
+    return data
+  },
+  dreDrilldown: async (params: {
+    row_key: string
+    year: number
+    month?: number
+    regime?: 'competencia' | 'caixa'
+    cost_center_id?: string
+  }): Promise<DREDrilldownResponse> => {
+    const { data } = await api.get('/reports/dre/drilldown', { params: stripCostCenterSentinel(params) })
     return data
   },
 }

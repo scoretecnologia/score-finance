@@ -40,6 +40,11 @@
   --sidebar-border: #E8ECF1;
   --sidebar-ring: #00A859;
   --sidebar-muted: #64748B;
+  /* Hierarquia de linhas da DRE (opacas: a 1a coluna da matriz e sticky) */
+  --dre-row-macro: #E9EEF5;
+  --dre-row-cat: #F6F8FC;
+  --dre-row-analytic: #FFFFFF;
+  --dre-row-subtotal: #E6F6EF;
 }
 
 .dark {
@@ -71,6 +76,11 @@
   --sidebar-border: #2A2D3A;
   --sidebar-ring: #00C86E;
   --sidebar-muted: #8A8F9E;
+  /* Hierarquia de linhas da DRE (opacas: a 1a coluna da matriz e sticky) */
+  --dre-row-macro: #262938;
+  --dre-row-cat: #1C1E28;
+  --dre-row-analytic: #16171F;
+  --dre-row-subtotal: #0E3020;
 }
 
 @theme inline {

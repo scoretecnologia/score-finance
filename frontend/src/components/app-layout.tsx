@@ -43,7 +43,6 @@ import {
   Repeat,
   Landmark,
   Users,
-  BarChart3,
   Sun,
   Moon,
   Languages,
@@ -58,6 +57,7 @@ import {
   PanelLeftOpen,
   CreditCard,
   FileText,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { ChangePasswordDialog } from '@/components/change-password-dialog'
@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
   { type: 'link', key: 'creditCards',  path: '/credit-cards', icon: CreditCard, exactMatch: true },
   { type: 'link', key: 'importCreditCards', path: '/credit-cards/import', icon: Upload },
   { type: 'separator', labelKey: 'nav.groupAnalysis' },
-  { type: 'link', key: 'reports',      path: '/reports',      icon: BarChart3 },
+  { type: 'link', key: 'dre',          path: '/dre',          icon: FileSpreadsheet },
   { type: 'link', key: 'assets',       path: '/assets',       icon: Landmark },
   { type: 'separator', labelKey: 'nav.groupSetup' },
   { type: 'link', key: 'budgets',      path: '/budgets',      icon: PiggyBank },
@@ -526,7 +526,7 @@ export function AppLayout() {
 
         {/* Main content */}
         <main className={cn('flex-1 min-h-screen overflow-x-hidden bg-background/50 transition-all duration-300', sidebarCollapsed ? 'lg:ml-[60px]' : 'lg:ml-60')}>
-          <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+          <div className={cn('p-4 sm:p-6 lg:p-8 w-full mx-auto', location.pathname.startsWith('/dre') ? 'max-w-none px-3 sm:px-5 lg:px-6' : 'max-w-7xl')}>
             <Outlet />
           </div>
         </main>

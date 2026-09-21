@@ -511,3 +511,70 @@ export interface CompanyMember {
   invited_at: string
   accepted_at: string | null
 }
+
+export interface DRERow {
+  key: string
+  label: string
+  code?: string | null
+  level: number
+  is_subtotal: boolean
+  bucket: string
+  values: Record<string, number>
+  child_keys: string[]
+}
+
+export interface DRETotalSummary {
+  faturamento: number
+  custos_variaveis: number
+  margem_contribuicao: number
+  despesas_fixas: number
+  lucro_operacional_antes_invest: number
+  investimentos: number
+  lucro_operacional: number
+  resultado_nao_operacional: number
+  lucro_liquido: number
+}
+
+export interface DREResponse {
+  company_id: string
+  company_name: string
+  year: number
+  regime: 'competencia' | 'caixa'
+  months: string[]
+  month_labels: Record<string, string>
+  rows: DRERow[]
+  totals: DRETotalSummary
+}
+
+export interface DRETransactionItem {
+  id: string
+  date: string
+  description: string
+  amount: number
+  type: string
+  status: string
+  payee?: string | null
+  account_name?: string | null
+  category_name?: string | null
+  category_code?: string | null
+  chart_name?: string | null
+  chart_code?: string | null
+  cost_center_name?: string | null
+  net_amount: number
+  notes?: string | null
+}
+
+export interface DREDrilldownResponse {
+  row_key: string
+  title: string
+  code?: string | null
+  level: number
+  year: number
+  month?: number | null
+  month_label?: string | null
+  regime: string
+  total_amount: number
+  total_count: number
+  items: DRETransactionItem[]
+}
+
