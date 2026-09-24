@@ -24,7 +24,7 @@ import { CategoryIcon } from '@/components/category-icon'
 import { TransactionDialog, extractApiError, type SaveAction } from '@/components/transaction-dialog'
 import { TransferDialog } from '@/components/transfer-dialog'
 import { LinkTransferDialog } from '@/components/link-transfer-dialog'
-import { TransactionsFilterBar } from '@/components/transactions-filter-bar'
+import { TransactionsFilterBar, type TransactionTypeFilter } from '@/components/transactions-filter-bar'
 import { usePrivacyMode } from '@/hooks/use-privacy-mode'
 import { useAuth } from '@/contexts/auth-context'
 import { useCompany } from '@/contexts/company-context'
@@ -58,6 +58,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
     return initial ? [initial] : []
   })
   const [filterUncategorized, setFilterUncategorized] = useState<boolean>(false)
+  const [filterType, setFilterType] = useState<TransactionTypeFilter>('')
   const [filterFrom, setFilterFrom] = useState<string>('')
   const [filterTo, setFilterTo] = useState<string>('')
   const [sortBy, setSortBy] = useState<string>('date')
@@ -92,6 +93,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
     const nextCategory = searchParams.get('category_id')
     setFilterChartAccountIds(nextCategory ? [nextCategory] : [])
     setFilterUncategorized(false)
+    setFilterType('')
     setFilterCardholderName('')
     setPage(1)
   }, [searchParams])
@@ -109,7 +111,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   useEffect(() => {
     setSelectedIds(new Set())
     setBulkChartAccount('')
-  }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery])
+  }, [page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterType, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery])
 
   // Scroll to and flash a highlighted row after navigation (e.g. opened via
   // the command palette). Re-runs whenever highlightId or the current data
@@ -133,7 +135,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, limit, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType, sortBy, sortDir],
+    queryKey: ['transactions', page, limit, filterAccountIds, filterChartAccountIds, filterUncategorized, filterType, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType, sortBy, sortDir],
     queryFn: () =>
       transactions.list({
         page,
@@ -143,6 +145,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         payee_id: filterPayee || undefined,
         cardholder_name: filterCardholderName || undefined,
         uncategorized: filterUncategorized ? true : undefined,
+        type: filterType || undefined,
         from: filterFrom || undefined,
         to: filterTo || undefined,
         q: searchQuery || undefined,
@@ -434,6 +437,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                     account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
                     chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
                     uncategorized: filterUncategorized ? true : undefined,
+                    type: filterType || undefined,
                     payee_id: filterPayee || undefined,
                     cardholder_name: filterCardholderName || undefined,
                     from: filterFrom || undefined,
@@ -477,6 +481,8 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         onChartAccountIdsChange={(v) => { setFilterChartAccountIds(v); setPage(1) }}
         filterUncategorized={filterUncategorized}
         onUncategorizedChange={(v) => { setFilterUncategorized(v); setPage(1) }}
+        filterType={filterType}
+        onTypeChange={(v) => { setFilterType(v); setPage(1) }}
         filterPayee={filterPayee}
         onPayeeChange={(v) => { setFilterPayee(v); setPage(1) }}
         filterCardholderName={filterCardholderName}
@@ -490,6 +496,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
           setFilterAccountIds([])
           setFilterChartAccountIds([])
           setFilterUncategorized(false)
+          setFilterType('')
           setFilterPayee('')
           setFilterCardholderName('')
           setSearchInput('')

@@ -13,6 +13,8 @@ import {
   Wallet,
   X,
   CreditCard,
+  ArrowDownLeft,
+  ArrowUpRight,
 } from 'lucide-react'
 import { ptBR, enUS } from 'date-fns/locale'
 
@@ -40,6 +42,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Account, Category, CategoryGroup, ChartAccount, Payee } from '@/types'
 
+export type TransactionTypeFilter = '' | 'credit' | 'debit'
+
 interface TransactionsFilterBarProps {
   searchInput: string
   onSearchChange: (value: string) => void
@@ -49,6 +53,8 @@ interface TransactionsFilterBarProps {
   onChartAccountIdsChange: (value: string[]) => void
   filterUncategorized: boolean
   onUncategorizedChange: (value: boolean) => void
+  filterType: TransactionTypeFilter
+  onTypeChange: (value: TransactionTypeFilter) => void
   filterPayee: string
   onPayeeChange: (value: string) => void
   filterCardholderName: string
@@ -81,6 +87,8 @@ export function TransactionsFilterBar({
   onChartAccountIdsChange,
   filterUncategorized,
   onUncategorizedChange,
+  filterType,
+  onTypeChange,
   filterPayee,
   onPayeeChange,
   filterCardholderName,
@@ -157,6 +165,7 @@ export function TransactionsFilterBar({
     filterAccountIds.length > 0 ||
     filterChartAccountIds.length > 0 ||
     filterUncategorized ||
+    !!filterType ||
     !!filterPayee ||
     !!filterFrom ||
     !!filterTo ||
@@ -272,6 +281,38 @@ export function TransactionsFilterBar({
 
         {/* Right-side controls */}
         <div className="ml-auto flex shrink-0 items-center gap-1 pl-1">
+          {/* Quick type toggles: inflows / outflows */}
+          <div className="inline-flex h-8 items-center rounded-md border border-border/80 bg-background p-0.5">
+            <button
+              type="button"
+              aria-pressed={filterType === 'credit'}
+              title={t('transactions.filtersBar.inflows')}
+              onClick={() => onTypeChange(filterType === 'credit' ? '' : 'credit')}
+              className={cn(
+                'inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-[12px] font-medium text-muted-foreground transition-colors',
+                'hover:bg-muted hover:text-foreground',
+                filterType === 'credit' && 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/15 hover:text-emerald-600 dark:text-emerald-400',
+              )}
+            >
+              <ArrowDownLeft size={13} />
+              <span className="hidden sm:inline">{t('transactions.filtersBar.inflows')}</span>
+            </button>
+            <button
+              type="button"
+              aria-pressed={filterType === 'debit'}
+              title={t('transactions.filtersBar.outflows')}
+              onClick={() => onTypeChange(filterType === 'debit' ? '' : 'debit')}
+              className={cn(
+                'inline-flex h-7 items-center gap-1 rounded-[5px] px-2 text-[12px] font-medium text-muted-foreground transition-colors',
+                'hover:bg-muted hover:text-foreground',
+                filterType === 'debit' && 'bg-red-500/10 text-red-600 hover:bg-red-500/15 hover:text-red-600 dark:text-red-400',
+              )}
+            >
+              <ArrowUpRight size={13} />
+              <span className="hidden sm:inline">{t('transactions.filtersBar.outflows')}</span>
+            </button>
+          </div>
+
           {hasAnyFilter && (
             <button
               type="button"
@@ -671,6 +712,7 @@ export function TransactionsFilterBar({
         {(filterAccountIds.length > 0 ||
           filterChartAccountIds.length > 0 ||
           filterUncategorized ||
+          !!filterType ||
           !!selectedPayee ||
           !!filterCardholderName ||
           !!dateLabel) && (
@@ -714,6 +756,14 @@ export function TransactionsFilterBar({
                 label={t('transactions.category')}
                 value={t('transactions.uncategorized')}
                 onRemove={() => onUncategorizedChange(false)}
+              />
+            )}
+            {filterType && (
+              <FilterChip
+                icon={filterType === 'credit' ? <ArrowDownLeft size={12} /> : <ArrowUpRight size={12} />}
+                label={t('transactions.filtersBar.type')}
+                value={filterType === 'credit' ? t('transactions.filtersBar.inflows') : t('transactions.filtersBar.outflows')}
+                onRemove={() => onTypeChange('')}
               />
             )}
             {selectedPayee && (

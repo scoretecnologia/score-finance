@@ -283,6 +283,9 @@
     "filtersBar": {
       "filters": "Filtros",
       "filterBy": "Filtrar por",
+      "type": "Tipo",
+      "inflows": "Entradas",
+      "outflows": "Saídas",
       "date": "Data",
       "customRange": "Período personalizado…",
       "pickRange": "Escolha uma data inicial e final",

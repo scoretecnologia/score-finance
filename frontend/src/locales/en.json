@@ -261,6 +261,9 @@
     "filtersBar": {
       "filters": "Filters",
       "filterBy": "Filter by",
+      "type": "Type",
+      "inflows": "Inflows",
+      "outflows": "Outflows",
       "date": "Date",
       "customRange": "Custom range…",
       "pickRange": "Pick a start and end date",
