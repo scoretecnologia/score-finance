@@ -51,6 +51,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   const userCurrency = user?.preferences?.currency_display ?? 'BRL'
   const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(20)
   const [filterAccountIds, setFilterAccountIds] = useState<string[]>([])
   const [filterChartAccountIds, setFilterChartAccountIds] = useState<string[]>(() => {
     const initial = searchParams.get('category_id')
@@ -132,11 +133,11 @@ export default function TransactionsPage({ accountType }: { accountType?: string
   }, [highlightId, searchQuery, filterPayee, filterChartAccountIds, page])
 
   const { data, isLoading } = useQuery({
-    queryKey: ['transactions', page, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType, sortBy, sortDir],
+    queryKey: ['transactions', page, limit, filterAccountIds, filterChartAccountIds, filterUncategorized, filterPayee, filterCardholderName, filterFrom, filterTo, searchQuery, accountType, sortBy, sortDir],
     queryFn: () =>
       transactions.list({
         page,
-        limit: 20,
+        limit,
         account_ids: filterAccountIds.length > 0 ? filterAccountIds : undefined,
         chart_account_ids: filterChartAccountIds.length > 0 ? filterChartAccountIds : undefined,
         payee_id: filterPayee || undefined,
@@ -414,7 +415,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
       ? t('transactions.linkTransferInvalidPair')
       : undefined
 
-  const totalPages = data ? Math.ceil(data.total / 20) : 0
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / limit)) : 0
 
   return (
     <div>
@@ -693,27 +694,47 @@ export default function TransactionsPage({ accountType }: { accountType?: string
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
-        <div className={`flex items-center justify-center gap-2 ${selectedIds.size > 0 ? 'pb-16' : ''}`}>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage(page - 1)}
-          >
-            {t('transactions.previous')}
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {page} / {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage(page + 1)}
-          >
-            {t('transactions.next')}
-          </Button>
+      {data && data.total > 0 && (
+        <div className={`flex flex-wrap items-center justify-between gap-4 pt-4 px-1 ${selectedIds.size > 0 ? 'pb-16' : 'pb-6'}`}>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span>{t('transactions.show')}</span>
+            <select
+              value={limit}
+              onChange={(e) => {
+                setLimit(Number(e.target.value))
+                setPage(1)
+              }}
+              className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs outline-none"
+            >
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
+            <span>{t('transactions.perPage')}</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => setPage(page - 1)}
+            >
+              {t('transactions.previous')}
+            </Button>
+            <span className="text-sm text-muted-foreground min-w-[3rem] text-center">
+              {page} / {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => setPage(page + 1)}
+            >
+              {t('transactions.next')}
+            </Button>
+          </div>
         </div>
       )}
 
