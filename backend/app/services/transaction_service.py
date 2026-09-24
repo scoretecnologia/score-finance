@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import select, func, or_, update, cast, String
+from sqlalchemy import select, func, or_, update, cast, String, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -164,7 +164,11 @@ async def get_transactions(
     if sort_by == 'description':
         order_col = Transaction.description
     elif sort_by == 'amount':
-        order_col = Transaction.amount
+        # Ordena pelo valor com sinal: saidas negativas, entradas positivas
+        order_col = case(
+            (Transaction.type.in_(["debit", "expense"]), -Transaction.amount),
+            else_=Transaction.amount,
+        )
     elif sort_by == 'account':
         order_col = Account.name
     elif sort_by == 'category':
