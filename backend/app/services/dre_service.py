@@ -173,6 +173,8 @@ async def get_dre_data(
             Transaction.company_id == company_id,
             func.extract("year", date_expr) == year,
             Transaction.status != "cancelled",
+            # Saldo inicial de conta bancaria nao e resultado: fica fora da DRE
+            Transaction.source != "opening_balance",
         )
     )
 
@@ -503,6 +505,8 @@ async def get_dre_drilldown(
             Transaction.company_id == company_id,
             func.extract("year", date_expr) == year,
             Transaction.status != "cancelled",
+            # Saldo inicial de conta bancaria nao e resultado: fica fora da DRE
+            Transaction.source != "opening_balance",
         )
     )
 
