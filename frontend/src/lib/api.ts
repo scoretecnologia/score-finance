@@ -226,6 +226,16 @@ export const chartOfAccounts = {
     })
     return data
   },
+  copyFrom: async (
+    sourceCompanyId: string,
+    options?: { skip_duplicates?: boolean }
+  ): Promise<{ imported_groups: number; imported_categories: number; imported_accounts: number; skipped_accounts: number }> => {
+    const { data } = await api.post('/chart-of-accounts/copy', {
+      source_company_id: sourceCompanyId,
+      skip_duplicates: options?.skip_duplicates ?? true,
+    })
+    return data
+  },
 }
 
 // Bank Connections

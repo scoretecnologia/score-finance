@@ -1,3 +1,4 @@
+import uuid
 from typing import Optional
 
 from pydantic import BaseModel
@@ -12,6 +13,11 @@ class ChartOfAccountsRow(BaseModel):
 
 class ChartOfAccountsImportRequest(BaseModel):
     rows: list[ChartOfAccountsRow]
+    skip_duplicates: bool = True
+
+
+class ChartOfAccountsCopyRequest(BaseModel):
+    source_company_id: uuid.UUID
     skip_duplicates: bool = True
 
 

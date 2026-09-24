@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import type { Category, CategoryGroup, ChartAccount } from '@/types'
-import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown, Upload, Download, X, RefreshCw } from 'lucide-react'
+import { Pencil, Trash2, Plus, ChevronDown, ChevronRight, ChevronsUpDown, Upload, Download, X, RefreshCw, Copy } from 'lucide-react'
 import { PageHeader } from '@/components/page-header'
 import { CategoryIcon } from '@/components/category-icon'
 import { IconPicker } from '@/components/icon-picker'
@@ -44,7 +44,8 @@ function SectionHeader({ title, titleExtra, action }: { title: string; titleExtr
 
 export default function CategoriesPage() {
   const { t } = useTranslation()
-  const { currentCompany } = useCompany()
+  const { currentCompany, companies } = useCompany()
+  const otherCompanies = companies.filter((c) => c.id !== currentCompany?.id)
   const canManage = currentCompany?.role === 'owner' || currentCompany?.role === 'admin'
   const queryClient = useQueryClient()
   
@@ -74,6 +75,8 @@ export default function CategoriesPage() {
 
   const [coaImportDialogOpen, setCoaImportDialogOpen] = useState(false)
   const [coaPreviewDialogOpen, setCoaPreviewDialogOpen] = useState(false)
+  const [coaCopyDialogOpen, setCoaCopyDialogOpen] = useState(false)
+  const [coaCopySourceId, setCoaCopySourceId] = useState('')
   const [coaFileName, setCoaFileName] = useState<string | null>(null)
   const coaFileInputRef = useRef<HTMLInputElement>(null)
   const [coaRows, setCoaRows] = useState<{
@@ -212,6 +215,23 @@ export default function CategoriesPage() {
       setCoaRows([])
       setCoaFileName(null)
       if (coaFileInputRef.current) coaFileInputRef.current.value = ''
+      const msg = data.skipped_accounts > 0
+        ? t('chartAccounts.coaImportedWithSkipped', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups, skipped: data.skipped_accounts })
+        : t('chartAccounts.coaImported', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups })
+      toast.success(msg)
+    },
+    onError: (error: unknown) => {
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      toast.error(detail || t('common.error'))
+    },
+  })
+
+  const coaCopyMutation = useMutation({
+    mutationFn: (sourceCompanyId: string) => chartOfAccountsApi.copyFrom(sourceCompanyId),
+    onSuccess: (data) => {
+      invalidateAll()
+      setCoaCopyDialogOpen(false)
+      setCoaCopySourceId('')
       const msg = data.skipped_accounts > 0
         ? t('chartAccounts.coaImportedWithSkipped', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups, skipped: data.skipped_accounts })
         : t('chartAccounts.coaImported', { accounts: data.imported_accounts, categories: data.imported_categories, groups: data.imported_groups })
@@ -516,6 +536,9 @@ export default function CategoriesPage() {
                 <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaImportDialogOpen(true)}>
                   <Upload size={12} /> <span className="hidden sm:inline">{t('chartAccounts.importXlsx')}</span>
                 </Button>
+                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaCopyDialogOpen(true)}>
+                  <Copy size={12} /> <span className="hidden sm:inline">{t('chartAccounts.copyFromCompany')}</span>
+                </Button>
                 <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => openGroupDialog(null)}>
                   <Plus size={13} /> <span className="hidden sm:inline">{t('groups.add')}</span>
                 </Button>
@@ -815,6 +838,55 @@ export default function CategoriesPage() {
             <Button type="button" onClick={() => coaFileInputRef.current?.click()} className="gap-2">
               <Upload size={14} />
               {t('chartAccounts.selectFile')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={coaCopyDialogOpen}
+        onOpenChange={(open) => {
+          setCoaCopyDialogOpen(open)
+          if (!open) setCoaCopySourceId('')
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t('chartAccounts.coaCopyTitle')}</DialogTitle>
+            <DialogDescription>{t('chartAccounts.coaCopyHelp')}</DialogDescription>
+          </DialogHeader>
+
+          {otherCompanies.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t('chartAccounts.coaCopyNoCompanies')}</p>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="coa-copy-source">{t('chartAccounts.coaCopySource')}</Label>
+              <select
+                id="coa-copy-source"
+                value={coaCopySourceId}
+                onChange={(e) => setCoaCopySourceId(e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">{t('chartAccounts.coaCopySelect')}</option>
+                {otherCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" type="button" onClick={() => setCoaCopyDialogOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              className="gap-2"
+              disabled={!coaCopySourceId || coaCopyMutation.isPending}
+              onClick={() => coaCopyMutation.mutate(coaCopySourceId)}
+            >
+              {coaCopyMutation.isPending ? <RefreshCw size={14} className="animate-spin" /> : <Copy size={14} />}
+              {t('chartAccounts.coaCopyConfirm')}
             </Button>
           </DialogFooter>
         </DialogContent>
