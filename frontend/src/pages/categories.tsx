@@ -199,10 +199,16 @@ export default function CategoriesPage() {
     onError: () => toast.error(t('common.error')),
   })
 
+  const allAccounts = ((): ChartAccount[] => {
+    const list: ChartAccount[] = []
+    groups?.forEach(g => g.categories?.forEach(c => c.chart_accounts?.forEach(a => list.push(a))))
+    categoriesList?.filter(c => !c.group_id).forEach(c => c.chart_accounts?.forEach(a => list.push(a)))
+    return list
+  })()
+  // Copia de outra empresa so faz sentido em plano de contas ainda vazio
+  const canCopyFromCompany = !!groups && !!categoriesList && allAccounts.length === 0
+
   const selectedAccounts = ((): ChartAccount[] => {
-    const allAccounts: ChartAccount[] = []
-    groups?.forEach(g => g.categories?.forEach(c => c.chart_accounts?.forEach(a => allAccounts.push(a))))
-    categoriesList?.filter(c => !c.group_id).forEach(c => c.chart_accounts?.forEach(a => allAccounts.push(a)))
     return allAccounts.filter(a => selectedAccountIds.has(a.id))
   })()
 
@@ -536,9 +542,11 @@ export default function CategoriesPage() {
                 <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaImportDialogOpen(true)}>
                   <Upload size={12} /> <span className="hidden sm:inline">{t('chartAccounts.importXlsx')}</span>
                 </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaCopyDialogOpen(true)}>
-                  <Copy size={12} /> <span className="hidden sm:inline">{t('chartAccounts.copyFromCompany')}</span>
-                </Button>
+                {canCopyFromCompany && (
+                  <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => setCoaCopyDialogOpen(true)}>
+                    <Copy size={12} /> <span className="hidden sm:inline">{t('chartAccounts.copyFromCompany')}</span>
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-1.5 h-8" onClick={() => openGroupDialog(null)}>
                   <Plus size={13} /> <span className="hidden sm:inline">{t('groups.add')}</span>
                 </Button>
