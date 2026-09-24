@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.category import Category
 from app.schemas.category import CategoryCreate, CategoryUpdate
+from app.core.code_sort import sort_by_code, sort_in_place_by_code
 from app.services.category_group_service import CATEGORY_TO_GROUP, create_default_groups
 
 
@@ -69,7 +70,10 @@ async def get_categories(session: AsyncSession, company_id: uuid.UUID) -> list[C
         .options(selectinload(Category.chart_accounts))
         .order_by(Category.code, Category.name)
     )
-    return list(result.scalars().all())
+    categories = sort_by_code(result.scalars().all())
+    for category in categories:
+        sort_in_place_by_code(category.chart_accounts)
+    return categories
 
 
 async def get_category(session: AsyncSession, category_id: uuid.UUID, company_id: uuid.UUID) -> Optional[Category]:
@@ -78,7 +82,10 @@ async def get_category(session: AsyncSession, category_id: uuid.UUID, company_id
         .where(Category.id == category_id, Category.company_id == company_id)
         .options(selectinload(Category.chart_accounts))
     )
-    return result.scalar_one_or_none()
+    category = result.scalar_one_or_none()
+    if category:
+        sort_in_place_by_code(category.chart_accounts)
+    return category
 
 
 async def create_category(session: AsyncSession, company_id: uuid.UUID, data: CategoryCreate) -> Category:

@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.models.category import Category
 from app.models.category_group import CategoryGroup
 from app.schemas.category_group import CategoryGroupCreate, CategoryGroupUpdate
+from app.core.code_sort import sort_in_place_by_code
 
 
 # Language-keyed translations for default groups
@@ -72,7 +73,10 @@ async def get_groups(session: AsyncSession, company_id: uuid.UUID) -> list[Categ
         .options(selectinload(CategoryGroup.categories).selectinload(Category.chart_accounts))
         .order_by(CategoryGroup.position)
     )
-    return list(result.scalars().all())
+    groups = list(result.scalars().all())
+    for group in groups:
+        _sort_group_tree(group)
+    return groups
 
 
 async def get_group(session: AsyncSession, group_id: uuid.UUID, company_id: uuid.UUID) -> Optional[CategoryGroup]:
@@ -81,7 +85,17 @@ async def get_group(session: AsyncSession, group_id: uuid.UUID, company_id: uuid
         .where(CategoryGroup.id == group_id, CategoryGroup.company_id == company_id)
         .options(selectinload(CategoryGroup.categories).selectinload(Category.chart_accounts))
     )
-    return result.scalar_one_or_none()
+    group = result.scalar_one_or_none()
+    if group:
+        _sort_group_tree(group)
+    return group
+
+
+def _sort_group_tree(group: CategoryGroup) -> None:
+    """Ordena categorias e contas analíticas do grupo por código natural."""
+    sort_in_place_by_code(group.categories)
+    for category in group.categories:
+        sort_in_place_by_code(category.chart_accounts)
 
 
 async def create_group(session: AsyncSession, company_id: uuid.UUID, data: CategoryGroupCreate) -> CategoryGroup:

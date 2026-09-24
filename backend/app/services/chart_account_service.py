@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.models.chart_account import ChartAccount
 from app.models.category import Category
 from app.schemas.chart_account import ChartAccountCreate, ChartAccountUpdate
+from app.core.code_sort import sort_by_code
 
 
 async def get_chart_accounts(session: AsyncSession, company_id: uuid.UUID) -> list[ChartAccount]:
@@ -16,7 +17,7 @@ async def get_chart_accounts(session: AsyncSession, company_id: uuid.UUID) -> li
         .where(ChartAccount.company_id == company_id)
         .order_by(ChartAccount.code, ChartAccount.name)
     )
-    return list(result.scalars().all())
+    return sort_by_code(result.scalars().all())
 
 
 async def get_chart_account(session: AsyncSession, account_id: uuid.UUID, company_id: uuid.UUID) -> Optional[ChartAccount]:
