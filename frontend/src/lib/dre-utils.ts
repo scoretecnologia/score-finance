@@ -41,11 +41,17 @@ export function getAV(
 }
 
 /** Exportação da DRE para CSV formatado */
-export function exportDREToCSV(dreData: DREResponse, visibleRows: DRERow[]): void {
-  const months = dreData.months
+export function exportDREToCSV(
+  dreData: DREResponse,
+  visibleRows: DRERow[],
+  activeMonths?: string[]
+): void {
+  const months = activeMonths && activeMonths.length > 0 ? activeMonths : dreData.months
   const labels = months.map((m) => dreData.month_labels[m] || m)
+  const isFiltered = months.length !== dreData.months.length
 
-  const headers = ['Conta Contábil', ...labels, 'Total Acumulado']
+  const totalHeader = isFiltered ? `Total (${months.length} meses)` : 'Total Acumulado'
+  const headers = ['Conta Contábil', ...labels, totalHeader]
   const rows: string[][] = []
 
   visibleRows.forEach((row) => {
@@ -58,7 +64,10 @@ export function exportDREToCSV(dreData: DREResponse, visibleRows: DRERow[]): voi
       return val.toFixed(2).replace('.', ',')
     })
 
-    const totalVal = (row.values['total'] ?? 0).toFixed(2).replace('.', ',')
+    const totalValNum = isFiltered
+      ? months.reduce((acc, m) => acc + (row.values[m] ?? 0), 0)
+      : (row.values['total'] ?? 0)
+    const totalVal = totalValNum.toFixed(2).replace('.', ',')
 
     rows.push([`"${rowTitle}"`, ...monthValues.map((v) => `"${v}"`), `"${totalVal}"`])
   })

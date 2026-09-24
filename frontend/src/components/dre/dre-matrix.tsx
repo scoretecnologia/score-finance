@@ -13,9 +13,16 @@ interface DREMatrixProps {
   searchTerm?: string
   costCenterId?: string
   costCenterName?: string
+  selectedMonths?: number[]
 }
 
-export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName }: DREMatrixProps) {
+export function DREMatrix({
+  data,
+  searchTerm = '',
+  costCenterId,
+  costCenterName,
+  selectedMonths,
+}: DREMatrixProps) {
   // Estado para o modal de drilldown
   const [drilldownParams, setDrilldownParams] = useState<DREDrilldownParams | null>(null)
 
@@ -42,8 +49,19 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
   const [showAV, setShowAV] = useState(true)
 
   // Meses da resposta
-  const months = data.months
+  const allMonths = data.months
   const monthLabels = data.month_labels
+
+  // Filtrar meses de acordo com a seleção (se fornecida e não vazia)
+  const months = useMemo(() => {
+    if (!selectedMonths || selectedMonths.length === 0 || selectedMonths.length === 12) {
+      return allMonths
+    }
+    const selectedMonthKeys = new Set(
+      selectedMonths.map((m) => `${data.year}-${String(m).padStart(2, '0')}`)
+    )
+    return allMonths.filter((m) => selectedMonthKeys.has(m))
+  }, [allMonths, selectedMonths, data.year])
 
   // Identificar linha de faturamento para servir de base da Análise Vertical (AV)
   const faturamentoRow = useMemo(() => {
@@ -55,9 +73,13 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
     months.forEach((m) => {
       map[m] = faturamentoRow?.values[m] ?? 0
     })
-    map['total'] = faturamentoRow?.values['total'] ?? 0
+    if (months.length === allMonths.length) {
+      map['total'] = faturamentoRow?.values['total'] ?? 0
+    } else {
+      map['total'] = months.reduce((acc, m) => acc + (faturamentoRow?.values[m] ?? 0), 0)
+    }
     return map
-  }, [faturamentoRow, months])
+  }, [faturamentoRow, months, allMonths])
 
   // Toggle de expansão
   const toggleRow = useCallback((key: string) => {
@@ -111,7 +133,7 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
   }, [data.rows, isRowVisible])
 
   const handleExportCSV = () => {
-    exportDREToCSV(data, visibleRows)
+    exportDREToCSV(data, visibleRows, months)
   }
 
   // O drilldown existe apenas no 3o nivel da arvore (conta analitica). Grupos macro (level 0),
@@ -235,7 +257,9 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
                   colSpan={1 + (showAV ? 1 : 0)}
                   className="text-center text-xs font-bold text-primary border-l-2 border-primary/30 py-2.5 bg-muted"
                 >
-                  Total Acumulado
+                  {months.length === allMonths.length
+                    ? 'Total Acumulado'
+                    : `Total (${months.length} ${months.length === 1 ? 'mês' : 'meses'})`}
                 </TableHead>
               </TableRow>
 
@@ -272,10 +296,19 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
             </TableHeader>
 
             <TableBody>
-              {visibleRows.length === 0 ? (
+              {months.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={1 + months.length * (1 + (showAH ? 1 : 0) + (showAV ? 1 : 0)) + 2}
+                    colSpan={2}
+                    className="h-32 text-center text-muted-foreground text-sm"
+                  >
+                    Nenhum mês selecionado. Selecione ao menos um mês no filtro para visualizar a DRE.
+                  </TableCell>
+                </TableRow>
+              ) : visibleRows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={1 + months.length * (1 + (showAH ? 1 : 0) + (showAV ? 1 : 0)) + 1 + (showAV ? 1 : 0)}
                     className="h-32 text-center text-muted-foreground text-sm"
                   >
                     Nenhuma conta encontrada para o filtro atual.
@@ -429,7 +462,10 @@ export function DREMatrix({ data, searchTerm = '', costCenterId, costCenterName 
 
                       {/* Coluna de Total Clicável para Drilldown Anual */}
                       {(() => {
-                        const totalVal = row.values['total'] ?? 0
+                        const isFiltered = months.length !== allMonths.length
+                        const totalVal = isFiltered
+                          ? months.reduce((acc, m) => acc + (row.values[m] ?? 0), 0)
+                          : (row.values['total'] ?? 0)
                         const revBaseTotal = baseByMonth['total'] ?? 0
                         const avTotal = getAV(totalVal, revBaseTotal)
 

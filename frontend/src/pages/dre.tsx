@@ -4,10 +4,11 @@ import { reports, costCenters as costCentersApi } from '@/lib/api'
 import { useCompany } from '@/contexts/company-context'
 import { DREMatrix } from '@/components/dre/dre-matrix'
 import { DREKPIs } from '@/components/dre/dre-kpis'
+import { DREMonthSelector } from '@/components/dre/dre-month-selector'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { CostCenter, DREResponse } from '@/types'
+import type { CostCenter, DREResponse, DRETotalSummary } from '@/types'
 import {
   Calendar,
   Building,
@@ -17,11 +18,14 @@ import {
   AlertCircle,
 } from 'lucide-react'
 
+const ALL_MONTHS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+
 export default function DREPage() {
   const { currentCompany } = useCompany()
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState<number>(currentYear)
+  const [selectedMonths, setSelectedMonths] = useState<number[]>(ALL_MONTHS)
   const regime: 'competencia' | 'caixa' = 'caixa'
   const [costCenterId, setCostCenterId] = useState<string>('all')
   const [search, setSearch] = useState<string>('')
@@ -64,6 +68,51 @@ export default function DREPage() {
 
   const availableYears = [2027, 2026, 2025, 2024, 2023]
 
+  // Totais recalculados de acordo com os meses selecionados
+  const filteredTotals = useMemo<DRETotalSummary>(() => {
+    if (!dreData) {
+      return {
+        faturamento: 0,
+        custos_variaveis: 0,
+        margem_contribuicao: 0,
+        despesas_fixas: 0,
+        lucro_operacional_antes_invest: 0,
+        investimentos: 0,
+        lucro_operacional: 0,
+        resultado_nao_operacional: 0,
+        lucro_liquido: 0,
+      }
+    }
+
+    if (selectedMonths.length === 12 || selectedMonths.length === 0) {
+      return dreData.totals
+    }
+
+    const selectedKeys = selectedMonths.map(
+      (m) => `${year}-${String(m).padStart(2, '0')}`
+    )
+
+    const sumRowValues = (keyOrBucket: string, isSubtotal = false) => {
+      const row = dreData.rows.find((r) =>
+        isSubtotal ? r.key === keyOrBucket : r.bucket === keyOrBucket && r.level === 0
+      )
+      if (!row) return 0
+      return selectedKeys.reduce((acc, k) => acc + (row.values[k] ?? 0), 0)
+    }
+
+    return {
+      faturamento: sumRowValues('faturamento'),
+      custos_variaveis: sumRowValues('custos_variaveis'),
+      margem_contribuicao: sumRowValues('margem_contribuicao', true),
+      despesas_fixas: sumRowValues('despesas_fixas'),
+      lucro_operacional_antes_invest: sumRowValues('lucro_op_antes', true),
+      investimentos: sumRowValues('investimentos'),
+      lucro_operacional: sumRowValues('lucro_operacional', true),
+      resultado_nao_operacional: sumRowValues('resultado_nao_op'),
+      lucro_liquido: sumRowValues('lucro_liquido', true),
+    }
+  }, [dreData, selectedMonths, year])
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho da Página */}
@@ -105,6 +154,15 @@ export default function DREPage() {
               ))}
             </div>
           </div>
+
+          <div className="h-4 w-px bg-border hidden sm:block" />
+
+          {/* Seletor Dropdown Múltipla Escolha de Meses */}
+          <DREMonthSelector
+            selectedMonths={selectedMonths}
+            onChange={setSelectedMonths}
+            year={year}
+          />
 
           <div className="h-4 w-px bg-border hidden sm:block" />
 
@@ -177,7 +235,7 @@ export default function DREPage() {
       ) : dreData ? (
         <div className="space-y-6">
           {/* Cards de KPIs */}
-          <DREKPIs totals={dreData.totals} />
+          <DREKPIs totals={filteredTotals} />
 
           {/* Matriz DRE */}
           <DREMatrix
@@ -185,6 +243,7 @@ export default function DREPage() {
             searchTerm={search}
             costCenterId={effectiveCostCenterId}
             costCenterName={selectedCostCenterName}
+            selectedMonths={selectedMonths}
           />
         </div>
       ) : null}
