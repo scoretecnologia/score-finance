@@ -238,10 +238,7 @@ async def stamp_primary_amount(
     Works for Transaction, RecurringTransaction, etc.
     """
     user = await session.get(User, company_id)
-    if not user:
-        return
-
-    primary_currency = user.primary_currency
+    primary_currency = user.primary_currency if user else get_settings().default_currency
     obj_currency = getattr(obj, currency_field, get_settings().default_currency)
     obj_amount = getattr(obj, amount_field, None)
 

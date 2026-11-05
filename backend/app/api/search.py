@@ -26,7 +26,7 @@ async def global_search(
     """
     hits = await search_service.search_all(
         session=session,
-        user_id=company.id,
+        company_id=company.id,
         query=q,
         per_type_limit=limit,
     )

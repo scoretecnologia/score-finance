@@ -8,7 +8,6 @@ import { CompanyProvider } from '@/contexts/company-context'
 import { ProtectedRoute } from '@/components/protected-route'
 import { AdminRoute } from '@/components/admin-route'
 import { AppLayout } from '@/components/app-layout'
-import { useCompany } from '@/contexts/company-context'
 
 const SetupPage = lazy(() => import('@/pages/setup'))
 const LoginPage = lazy(() => import('@/pages/login'))
@@ -30,7 +29,6 @@ const ReportsPage = lazy(() => import('@/pages/reports'))
 const DREPage = lazy(() => import('@/pages/dre'))
 const PayeesPage = lazy(() => import('@/pages/payees'))
 const AdminSettingsPage = lazy(() => import('@/pages/admin/settings'))
-const CreateCompanyPage = lazy(() => import('@/pages/create-company'))
 const CompanyMembersPage = lazy(() => import('@/pages/company-members'))
 
 const queryClient = new QueryClient({
@@ -50,18 +48,6 @@ function LoadingFallback() {
   )
 }
 
-/**
- * Guard que redireciona para /company/create se o usuário autenticado
- * ainda não tiver nenhuma empresa.
- */
-function CompanyGuard({ children }: { children: React.ReactNode }) {
-  const { hasPendingSetup, isLoading } = useCompany()
-
-  if (isLoading) return <LoadingFallback />
-  if (hasPendingSetup) return <Navigate to="/company/create" replace />
-  return <>{children}</>
-}
-
 function App() {
   return (
     <ThemeProvider>
@@ -73,25 +59,12 @@ function App() {
                 <Routes>
                   <Route path="/setup" element={<SetupPage />} />
                   <Route path="/login" element={<LoginPage />} />
-                  {/* Rota de registro removida pois a criação é feita via master: 
-                      <Route path="/register" element={<RegisterPage />} /> 
-                  */}
-                  {/* Criação de empresa (usuário já autenticado mas sem empresa) */}
-                  <Route
-                    path="/company/create"
-                    element={
-                      <ProtectedRoute>
-                        <CreateCompanyPage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* Rotas protegidas — requerem autenticação + empresa */}
+                  <Route path="/company/create" element={<Navigate to="/" replace />} />
+                  {/* Rotas protegidas — requerem autenticação */}
                   <Route
                     element={
                       <ProtectedRoute>
-                        <CompanyGuard>
-                          <AppLayout />
-                        </CompanyGuard>
+                        <AppLayout />
                       </ProtectedRoute>
                     }
                   >

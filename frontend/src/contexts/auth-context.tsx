@@ -63,18 +63,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const accessToken = data.access_token
     localStorage.setItem('token', accessToken)
-    setToken(accessToken)
     const me = await auth.me()
     setUser(me)
+    setToken(accessToken)
     return { requires_2fa: false }
   }, [])
 
   const verify2fa = useCallback(async (tempToken: string, code: string) => {
     const data = await auth.verify2fa(tempToken, code)
     localStorage.setItem('token', data.access_token)
-    setToken(data.access_token)
     const me = await auth.me()
     setUser(me)
+    setToken(data.access_token)
   }, [])
 
   const loginWithToken = useCallback((accessToken: string) => {

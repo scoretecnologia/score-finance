@@ -398,7 +398,7 @@ function TransactionForm({
             } as Partial<Transaction>
           : {
               description,
-              amount: parseFloat(amount),
+              amount: parseFloat(String(amount).replace(',', '.')),
               date,
               type,
               currency,

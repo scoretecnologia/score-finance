@@ -270,6 +270,7 @@ async def create_transaction(
         account_id=data.account_id,
         category_id=data.category_id,
         chart_account_id=data.chart_account_id,
+        cost_center_id=data.cost_center_id,
         payee_id=data.payee_id,
         description=data.description,
         amount=data.amount,

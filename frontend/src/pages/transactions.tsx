@@ -229,9 +229,13 @@ export default function TransactionsPage({ accountType }: { accountType?: string
         } as Record<string, unknown>)
       }
       if (payload.pendingFiles?.length) {
-        await Promise.all(
-          payload.pendingFiles.map(file => transactions.attachments.upload(created.id, file))
-        )
+        try {
+          await Promise.all(
+            payload.pendingFiles.map(file => transactions.attachments.upload(created.id, file))
+          )
+        } catch (attachErr) {
+          toast.error(extractApiError(attachErr))
+        }
       }
       return created
     },
@@ -550,17 +554,20 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                     />
                   </TableHead>
                 )}
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[30%] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('description')}>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pl-2 w-[25%] md:w-[28%] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('description')}>
                   <div className="flex items-center">{t('transactions.description')} <SortIcon column="description" /></div>
                 </TableHead>
-                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('category')}>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 w-[110px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('date')}>
+                  <div className="flex items-center">{t('transactions.date')} <SortIcon column="date" /></div>
+                </TableHead>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[190px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('category')}>
                   <div className="flex items-center">{t('transactions.category')} <SortIcon column="category" /></div>
                 </TableHead>
-                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[200px]">{t('transactions.notes')}</TableHead>
-                <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[160px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('account')}>
+                <TableHead className="hidden md:table-cell text-xs font-medium text-muted-foreground py-3 w-[180px]">{t('transactions.notes')}</TableHead>
+                <TableHead className="hidden lg:table-cell text-xs font-medium text-muted-foreground py-3 w-[150px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('account')}>
                   <div className="flex items-center">{t('transactions.account')} <SortIcon column="account" /></div>
                 </TableHead>
-                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[180px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('amount')}>
+                <TableHead className="text-xs font-medium text-muted-foreground py-3 pr-5 text-right w-[120px] md:w-[160px] cursor-pointer hover:bg-muted/50 select-none" onClick={() => handleSort('amount')}>
                   <div className="flex items-center justify-end">{t('transactions.amount')} <SortIcon column="amount" /></div>
                 </TableHead>
               </TableRow>
@@ -621,15 +628,17 @@ export default function TransactionsPage({ accountType }: { accountType?: string
                               {tx.cardholder_name}
                             </span>
                           )}
-                          {(tx.attachment_count ?? 0) > 0 && (
-                            <Paperclip size={12} className="text-muted-foreground shrink-0" />
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">{new Date(tx.date + 'T00:00:00').toLocaleDateString(locale)}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell py-2.5 max-w-[200px]">
+                           {(tx.attachment_count ?? 0) > 0 && (
+                             <Paperclip size={12} className="text-muted-foreground shrink-0" />
+                           )}
+                         </div>
+                       </div>
+                     </div>
+                   </TableCell>
+                   <TableCell className="py-2.5 text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+                     {new Date(tx.date + 'T00:00:00').toLocaleDateString(locale)}
+                   </TableCell>
+                   <TableCell className="hidden md:table-cell py-2.5 max-w-[190px]">
                     {(tx.chart_account || tx.category) ? (
                       <div className="flex items-center gap-2">
                         <CategoryIcon icon={tx.chart_account?.icon ?? tx.category?.icon} color={tx.chart_account?.color ?? tx.category?.color} size="sm" />
@@ -690,7 +699,7 @@ export default function TransactionsPage({ accountType }: { accountType?: string
               ))}
               {filteredItems.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={canManageTransactions ? 7 : 6} className="text-center py-16 text-muted-foreground">
                     {t('transactions.noResults')}
                   </TableCell>
                 </TableRow>
@@ -826,7 +835,13 @@ export default function TransactionsPage({ accountType }: { accountType?: string
       {/* Add/Edit Dialog */}
       <TransactionDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditingTx(null); setDuplicateDraft(null) }}
+        onClose={() => {
+          setDialogOpen(false)
+          setEditingTx(null)
+          setDuplicateDraft(null)
+          createMutation.reset()
+          updateMutation.reset()
+        }}
         transaction={editingTx}
         duplicateDraft={duplicateDraft}
         formResetKey={formResetKey}

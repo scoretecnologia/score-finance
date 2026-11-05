@@ -30,7 +30,8 @@ async def upload_attachment(
     try:
         attachment = await attachment_service.upload_attachment(
             session=session,
-            user_id=company.id,
+            company_id=company.id,
+            user_id=user.id,
             transaction_id=transaction_id,
             filename=file.filename or "unnamed",
             content_type=file.content_type or "application/octet-stream",

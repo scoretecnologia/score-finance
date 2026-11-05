@@ -10,7 +10,6 @@ interface CompanyContextType {
   isLoading: boolean
   switchCompany: (company: Company) => void
   createCompany: (name: string, cnpj?: string) => Promise<Company>
-  hasPendingSetup: boolean
 }
 
 const CompanyContext = createContext<CompanyContextType | null>(null)
@@ -18,7 +17,7 @@ const CompanyContext = createContext<CompanyContextType | null>(null)
 const STORAGE_KEY = 'score-finance.company-id'
 
 export function CompanyProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const queryClient = useQueryClient()
 
   const [currentCompanyId, setCurrentCompanyId] = useState<string | null>(
@@ -28,7 +27,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const { data: companiesList = [], isLoading } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
-    enabled: !!user,
+    enabled: !!user || !!token,
     staleTime: 1000 * 60 * 5,
   })
 
@@ -79,8 +78,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     [createMutation]
   )
 
-  const hasPendingSetup = !isLoading && companiesList.length === 0
-
   return (
     <CompanyContext.Provider
       value={{
@@ -89,7 +86,6 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
         isLoading,
         switchCompany,
         createCompany,
-        hasPendingSetup,
       }}
     >
       {children}

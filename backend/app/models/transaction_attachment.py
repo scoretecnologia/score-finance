@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, String
+from sqlalchemy import BigInteger, DateTime, ForeignKey, LargeBinary, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,6 +24,7 @@ class TransactionAttachment(Base):
     storage_key: Mapped[str] = mapped_column(String(500))
     content_type: Mapped[str] = mapped_column(String(100))
     size: Mapped[int] = mapped_column(BigInteger)
+    file_data: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
