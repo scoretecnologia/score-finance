@@ -9,6 +9,12 @@ export interface User {
   name?: string
 }
 
+export interface UserCompanyAccess {
+  company_id: string
+  company_name: string
+  role: string
+}
+
 export interface AdminUser {
   id: string
   email: string
@@ -17,6 +23,8 @@ export interface AdminUser {
   is_verified: boolean
   preferences: UserPreferences | null
   name?: string
+  company_ids?: string[]
+  companies?: UserCompanyAccess[]
 }
 
 export interface AdminUserList {

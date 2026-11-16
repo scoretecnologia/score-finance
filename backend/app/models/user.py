@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING, Optional
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import JSON, Boolean, String
+from sqlalchemy import JSON, Boolean, String, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -39,3 +39,26 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         """Return the user's configured primary currency."""
         from app.core.config import get_settings
         return (self.preferences or {}).get("currency_display", get_settings().default_currency)
+
+    @property
+    def company_ids(self) -> list:
+        state = inspect(self)
+        if "company_memberships" not in state.unloaded:
+            return [m.company_id for m in (self.company_memberships or [])]
+        return []
+
+    @property
+    def companies(self) -> list:
+        state = inspect(self)
+        if "company_memberships" not in state.unloaded:
+            items = []
+            for m in (self.company_memberships or []):
+                m_state = inspect(m)
+                c_name = m.company.name if "company" not in m_state.unloaded and m.company else "N/A"
+                items.append({
+                    "company_id": m.company_id,
+                    "company_name": c_name,
+                    "role": m.role,
+                })
+            return items
+        return []

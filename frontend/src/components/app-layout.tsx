@@ -100,7 +100,7 @@ function formatCurrency(value: number, _currency?: string, _locale?: string) {
 export function AppLayout() {
   const { t, i18n } = useTranslation()
   const { user, logout, updateUser } = useAuth()
-  const { companies: companiesList, currentCompany, switchCompany } = useCompany()
+  const { companies: companiesList, currentCompany, switchCompany, isLoading: isCompaniesLoading } = useCompany()
   const { theme, setTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -527,7 +527,19 @@ export function AppLayout() {
         {/* Main content */}
         <main className={cn('flex-1 min-h-screen overflow-x-hidden bg-background/50 transition-all duration-300', sidebarCollapsed ? 'lg:ml-[60px]' : 'lg:ml-60')}>
           <div className={cn('p-4 sm:p-6 lg:p-8 w-full mx-auto', location.pathname.startsWith('/dre') ? 'max-w-none px-3 sm:px-5 lg:px-6' : 'max-w-7xl')}>
-            <Outlet />
+            {!isCompaniesLoading && companiesList.length === 0 && !user?.is_superuser ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mb-4">
+                  <Building2 className="w-8 h-8 text-amber-500" />
+                </div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">Nenhuma empresa vinculada</h2>
+                <p className="text-sm text-muted-foreground mt-2 max-w-md">
+                  Sua conta de usuário ainda não possui acesso a nenhuma empresa. Entre em contato com o administrador do sistema para liberar o seu acesso.
+                </p>
+              </div>
+            ) : (
+              <Outlet />
+            )}
           </div>
         </main>
       </div>

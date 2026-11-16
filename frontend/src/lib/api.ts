@@ -888,11 +888,31 @@ export const admin = {
     const { data } = await api.get(`/admin/users/${id}`)
     return data
   },
-  createUser: async (user: { email: string; password: string; is_superuser?: boolean; preferences?: Record<string, unknown> }): Promise<AdminUser> => {
+  createUser: async (user: {
+    email: string
+    password: string
+    name?: string
+    is_superuser?: boolean
+    preferences?: Record<string, unknown>
+    company_ids?: string[]
+    company_roles?: Record<string, string>
+  }): Promise<AdminUser> => {
     const { data } = await api.post('/admin/users', user)
     return data
   },
-  updateUser: async (id: string, user: Partial<{ email: string; password: string; is_active: boolean; is_superuser: boolean; preferences: Record<string, unknown> }>): Promise<AdminUser> => {
+  updateUser: async (
+    id: string,
+    user: Partial<{
+      email: string
+      name: string
+      password: string
+      is_active: boolean
+      is_superuser: boolean
+      preferences: Record<string, unknown>
+      company_ids: string[]
+      company_roles: Record<string, string>
+    }>
+  ): Promise<AdminUser> => {
     const { data } = await api.patch(`/admin/users/${id}`, user)
     return data
   },

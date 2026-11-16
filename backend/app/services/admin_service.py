@@ -1,13 +1,16 @@
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi_users.exceptions import UserAlreadyExists
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.auth import UserManager
 from app.core.config import get_settings
 from app.models.app_settings import AppSetting
+from app.models.company_member import CompanyMember
 from app.models.user import User
 from app.schemas.admin import AdminUserCreate, AdminUserUpdate
 
@@ -18,7 +21,9 @@ async def list_users(
     page: int = 1,
     limit: int = 50,
 ) -> tuple[list[User], int]:
-    query = select(User)
+    query = select(User).options(
+        selectinload(User.company_memberships).selectinload(CompanyMember.company)
+    )
     count_query = select(func.count()).select_from(User)
 
     if search:
@@ -35,7 +40,11 @@ async def list_users(
 
 
 async def get_user(session: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
-    result = await session.execute(select(User).where(User.id == user_id))
+    result = await session.execute(
+        select(User)
+        .where(User.id == user_id)
+        .options(selectinload(User.company_memberships).selectinload(CompanyMember.company))
+    )
     return result.scalar_one_or_none()
 
 
@@ -43,6 +52,7 @@ async def create_user(
     session: AsyncSession,
     user_manager: UserManager,
     data: AdminUserCreate,
+    creator_id: Optional[uuid.UUID] = None,
 ) -> User:
     from fastapi_users.schemas import BaseUserCreate
 
@@ -58,20 +68,32 @@ async def create_user(
         user = await user_manager.create(create_schema)
         if data.name:
             user.name = data.name
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
+        if data.preferences:
+            user.preferences = data.preferences
+        session.add(user)
+        await session.commit()
     except UserAlreadyExists:
         raise ValueError("A user with this email already exists")
 
-    # Set preferences if provided
-    if data.preferences:
-        user.preferences = data.preferences
-        session.add(user)
+    # Add company memberships if provided
+    if data.company_ids:
+        now = datetime.now(timezone.utc)
+        for cid in data.company_ids:
+            role = (data.company_roles or {}).get(str(cid), "member")
+            cm = CompanyMember(
+                id=uuid.uuid4(),
+                company_id=cid,
+                user_id=user.id,
+                role=role,
+                invited_by=creator_id,
+                accepted_at=now,
+            )
+            session.add(cm)
         await session.commit()
-        await session.refresh(user)
 
-    return user
+    # Re-fetch user with relationships loaded
+    loaded_user = await get_user(session, user.id)
+    return loaded_user or user
 
 
 async def update_user(
@@ -114,8 +136,45 @@ async def update_user(
 
     session.add(user)
     await session.commit()
-    await session.refresh(user)
-    return user
+
+    if data.company_ids is not None:
+        now = datetime.now(timezone.utc)
+        existing_res = await session.execute(
+            select(CompanyMember).where(CompanyMember.user_id == user_id)
+        )
+        existing_map = {m.company_id: m for m in existing_res.scalars().all()}
+        target_ids = set(data.company_ids)
+
+        # Remove ones not in target
+        for cid, m in existing_map.items():
+            if cid not in target_ids:
+                await session.delete(m)
+
+        # Add or update
+        for cid in target_ids:
+            role = (data.company_roles or {}).get(str(cid), "member")
+            if cid in existing_map:
+                m = existing_map[cid]
+                if not m.accepted_at:
+                    m.accepted_at = now
+                if data.company_roles and str(cid) in data.company_roles:
+                    m.role = role
+                session.add(m)
+            else:
+                new_m = CompanyMember(
+                    id=uuid.uuid4(),
+                    company_id=cid,
+                    user_id=user_id,
+                    role=role,
+                    invited_by=current_user_id,
+                    accepted_at=now,
+                )
+                session.add(new_m)
+        await session.commit()
+
+    # Re-fetch user with relationships loaded
+    loaded_user = await get_user(session, user_id)
+    return loaded_user or user
 
 
 async def delete_user(

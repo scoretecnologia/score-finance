@@ -43,7 +43,8 @@ export default function AdminSettingsPage() {
   const [formPassword, setFormPassword] = useState('')
   const [formIsAdmin, setFormIsAdmin] = useState(false)
   const [formLanguage, setFormLanguage] = useState('en')
-
+  const [formCompanyIds, setFormCompanyIds] = useState<string[]>([])
+  const [formCompanyRoles, setFormCompanyRoles] = useState<Record<string, string>>({})
 
   const [editEmail, setEditEmail] = useState('')
   const [editName, setEditName] = useState('')
@@ -51,6 +52,8 @@ export default function AdminSettingsPage() {
   const [editIsAdmin, setEditIsAdmin] = useState(false)
   const [editPassword, setEditPassword] = useState('')
   const [showPasswordField, setShowPasswordField] = useState(false)
+  const [editCompanyIds, setEditCompanyIds] = useState<string[]>([])
+  const [editCompanyRoles, setEditCompanyRoles] = useState<Record<string, string>>({})
 
   const [formCompanyName, setFormCompanyName] = useState('')
   const [formCompanyCnpj, setFormCompanyCnpj] = useState('')
@@ -68,10 +71,18 @@ export default function AdminSettingsPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (data: { email: string; name?: string; password: string; is_superuser: boolean; preferences: Record<string, unknown> }) =>
-      adminApi.createUser(data),
+    mutationFn: (data: {
+      email: string
+      name?: string
+      password: string
+      is_superuser: boolean
+      preferences: Record<string, unknown>
+      company_ids?: string[]
+      company_roles?: Record<string, string>
+    }) => adminApi.createUser(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] })
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
       setCreateOpen(false)
       resetCreateForm()
       toast.success(t('admin.users.created'))
@@ -182,13 +193,49 @@ export default function AdminSettingsPage() {
 
   const accountingMode = (ccModeSetting?.value === 'accrual' ? 'accrual' : 'cash') as 'cash' | 'accrual'
 
+  const activeCompanies = companies.filter((c: any) => c.is_active)
+
   function resetCreateForm() {
     setFormEmail('')
     setFormName('')
     setFormPassword('')
     setFormIsAdmin(false)
     setFormLanguage('en')
+    setFormCompanyIds([])
+    setFormCompanyRoles({})
+  }
 
+  function toggleFormCompany(id: string) {
+    setFormCompanyIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+    setFormCompanyRoles(prev => {
+      if (prev[id]) {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      }
+      return { ...prev, [id]: 'member' }
+    })
+  }
+
+  function toggleSelectAllFormCompanies() {
+    const activeIds = activeCompanies.map((c: any) => c.id)
+    if (formCompanyIds.length === activeIds.length) {
+      setFormCompanyIds([])
+      setFormCompanyRoles({})
+    } else {
+      setFormCompanyIds(activeIds)
+      const roles: Record<string, string> = {}
+      activeIds.forEach((id: string) => {
+        roles[id] = formCompanyRoles[id] || 'member'
+      })
+      setFormCompanyRoles(roles)
+    }
+  }
+
+  function setFormRole(id: string, role: string) {
+    setFormCompanyRoles(prev => ({ ...prev, [id]: role }))
   }
 
   function openEdit(u: AdminUser) {
@@ -199,6 +246,44 @@ export default function AdminSettingsPage() {
     setEditIsAdmin(u.is_superuser)
     setEditPassword('')
     setShowPasswordField(false)
+
+    const initialCompanyIds = u.company_ids ?? u.companies?.map(c => c.company_id) ?? []
+    setEditCompanyIds(initialCompanyIds)
+    const initialRoles: Record<string, string> = {}
+    u.companies?.forEach(c => {
+      initialRoles[c.company_id] = c.role
+    })
+    setEditCompanyRoles(initialRoles)
+  }
+
+  function toggleEditCompany(id: string) {
+    setEditCompanyIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+    setEditCompanyRoles(prev => {
+      if (!editCompanyIds.includes(id)) {
+        return { ...prev, [id]: prev[id] || 'member' }
+      }
+      return prev
+    })
+  }
+
+  function toggleSelectAllEditCompanies() {
+    const activeIds = activeCompanies.map((c: any) => c.id)
+    if (editCompanyIds.length === activeIds.length) {
+      setEditCompanyIds([])
+    } else {
+      setEditCompanyIds(activeIds)
+      const roles = { ...editCompanyRoles }
+      activeIds.forEach((id: string) => {
+        if (!roles[id]) roles[id] = 'member'
+      })
+      setEditCompanyRoles(roles)
+    }
+  }
+
+  function setEditRole(id: string, role: string) {
+    setEditCompanyRoles(prev => ({ ...prev, [id]: role }))
   }
 
   const users = usersData?.items ?? []
@@ -267,9 +352,33 @@ export default function AdminSettingsPage() {
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {u.is_superuser ? t('admin.users.admin') : t('admin.users.user')}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-muted-foreground">
+                      {u.is_superuser ? t('admin.users.admin') : t('admin.users.user')}
+                    </span>
+                    {u.is_superuser ? (
+                      <>
+                        <span className="text-muted-foreground/30">•</span>
+                        <span className="text-xs text-primary/90 flex items-center gap-1">
+                          <Building2 size={11} />
+                          Todas as empresas (Master)
+                        </span>
+                      </>
+                    ) : u.companies && u.companies.length > 0 ? (
+                      <>
+                        <span className="text-muted-foreground/30">•</span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1 truncate max-w-md">
+                          <Building2 size={11} className="text-primary shrink-0" />
+                          {u.companies.map((c) => c.company_name).join(', ')}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-muted-foreground/30">•</span>
+                        <span className="text-xs text-amber-500/80 italic">Sem empresas</span>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -458,7 +567,7 @@ export default function AdminSettingsPage() {
 
       {/* Create User Dialog */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('admin.users.add')}</DialogTitle>
             <DialogDescription>{t('admin.users.addDesc')}</DialogDescription>
@@ -467,9 +576,12 @@ export default function AdminSettingsPage() {
             e.preventDefault()
             createMutation.mutate({
               email: formEmail,
+              name: formName || undefined,
               password: formPassword,
               is_superuser: formIsAdmin,
               preferences: { language: formLanguage, currency_display: 'BRL' },
+              company_ids: formCompanyIds,
+              company_roles: formCompanyRoles,
             })
           }}>
             <div className="space-y-4 py-2">
@@ -486,16 +598,79 @@ export default function AdminSettingsPage() {
                 <Input type="password" value={formPassword} onChange={(e) => setFormPassword(e.target.value)} required minLength={8} className="h-10 rounded-lg" />
               </div>
               <div className="space-y-1.5">
-                  <Label className="text-[13px]">{t('setup.language')}</Label>
-                  <select
-                    value={formLanguage}
-                    onChange={(e) => setFormLanguage(e.target.value)}
-                    className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="en">English</option>
-                    <option value="pt-BR">Português (BR)</option>
-                  </select>
+                <Label className="text-[13px]">{t('setup.language')}</Label>
+                <select
+                  value={formLanguage}
+                  onChange={(e) => setFormLanguage(e.target.value)}
+                  className="w-full h-10 rounded-lg border border-input bg-background px-3 text-sm"
+                >
+                  <option value="en">English</option>
+                  <option value="pt-BR">Português (BR)</option>
+                </select>
+              </div>
+
+              {/* Seção de Empresas com Acesso */}
+              <div className="space-y-2 pt-2 border-t border-border/50">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[13px] font-semibold flex items-center gap-1.5">
+                    <Building2 size={14} className="text-primary" />
+                    Empresas com Acesso
+                  </Label>
+                  {activeCompanies.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllFormCompanies}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      {formCompanyIds.length === activeCompanies.length ? 'Desmarcar todas' : 'Selecionar todas'}
+                    </button>
+                  )}
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  Marque as empresas que este usuário poderá visualizar e gerenciar.
+                </p>
+                <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-2">
+                  {activeCompanies.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">Nenhuma empresa ativa disponível.</p>
+                  ) : (
+                    activeCompanies.map((c: any) => {
+                      const isChecked = formCompanyIds.includes(c.id)
+                      const currentRole = formCompanyRoles[c.id] || 'member'
+                      return (
+                        <div
+                          key={c.id}
+                          className={`flex items-center justify-between p-2 rounded-md transition-colors border ${
+                            isChecked ? 'bg-primary/5 border-primary/20' : 'bg-card border-transparent hover:border-border/40'
+                          }`}
+                        >
+                          <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 pr-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleFormCompany(c.id)}
+                              className="h-4 w-4 rounded border-border accent-primary cursor-pointer shrink-0"
+                            />
+                            <span className="text-xs font-medium text-foreground truncate">{c.name}</span>
+                          </label>
+                          {isChecked && (
+                            <select
+                              value={currentRole}
+                              onChange={(e) => setFormRole(c.id, e.target.value)}
+                              className="h-7 text-[11px] rounded border border-border bg-background px-2 font-medium shrink-0 focus:outline-none focus:ring-1 focus:ring-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <option value="member">Membro</option>
+                              <option value="admin">Admin</option>
+                              <option value="viewer">Visualizador</option>
+                            </select>
+                          )}
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={() => setFormIsAdmin(!formIsAdmin)}
@@ -522,7 +697,7 @@ export default function AdminSettingsPage() {
 
       {/* Edit User Dialog */}
       <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('admin.users.edit')}</DialogTitle>
           </DialogHeader>
@@ -535,6 +710,8 @@ export default function AdminSettingsPage() {
               if (editIsActive !== editUser.is_active) updates.is_active = editIsActive
               if (editIsAdmin !== editUser.is_superuser) updates.is_superuser = editIsAdmin
               if (editPassword && editPassword.length >= 8) updates.password = editPassword
+              updates.company_ids = editCompanyIds
+              updates.company_roles = editCompanyRoles
               updateMutation.mutate(updates as { id: string })
             }}>
               <div className="space-y-4 py-2">
@@ -586,6 +763,68 @@ export default function AdminSettingsPage() {
                     {t('admin.users.resetPassword')}
                   </Button>
                 )}
+
+                {/* Seção de Empresas com Acesso */}
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[13px] font-semibold flex items-center gap-1.5">
+                      <Building2 size={14} className="text-primary" />
+                      Empresas com Acesso
+                    </Label>
+                    {activeCompanies.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllEditCompanies}
+                        className="text-xs text-primary hover:underline font-medium"
+                      >
+                        {editCompanyIds.length === activeCompanies.length ? 'Desmarcar todas' : 'Selecionar todas'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Marque as empresas que este usuário poderá visualizar e gerenciar.
+                  </p>
+                  <div className="max-h-48 overflow-y-auto space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-2">
+                    {activeCompanies.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-3">Nenhuma empresa ativa disponível.</p>
+                    ) : (
+                      activeCompanies.map((c: any) => {
+                        const isChecked = editCompanyIds.includes(c.id)
+                        const currentRole = editCompanyRoles[c.id] || 'member'
+                        return (
+                          <div
+                            key={c.id}
+                            className={`flex items-center justify-between p-2 rounded-md transition-colors border ${
+                              isChecked ? 'bg-primary/5 border-primary/20' : 'bg-card border-transparent hover:border-border/40'
+                            }`}
+                          >
+                            <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 pr-2">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => toggleEditCompany(c.id)}
+                                className="h-4 w-4 rounded border-border accent-primary cursor-pointer shrink-0"
+                              />
+                              <span className="text-xs font-medium text-foreground truncate">{c.name}</span>
+                            </label>
+                            {isChecked && (
+                              <select
+                                value={currentRole}
+                                onChange={(e) => setEditRole(c.id, e.target.value)}
+                                className="h-7 text-[11px] rounded border border-border bg-background px-2 font-medium shrink-0 focus:outline-none focus:ring-1 focus:ring-primary"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <option value="member">Membro</option>
+                                <option value="admin">Admin</option>
+                                <option value="viewer">Visualizador</option>
+                              </select>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <button

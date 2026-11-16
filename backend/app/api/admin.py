@@ -48,7 +48,7 @@ async def create_user(
     user_manager: UserManager = Depends(get_user_manager),
 ):
     try:
-        user = await admin_service.create_user(session, user_manager, data)
+        user = await admin_service.create_user(session, user_manager, data, creator_id=_user.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return AdminUserRead.model_validate(user)

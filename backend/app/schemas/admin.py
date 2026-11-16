@@ -4,6 +4,14 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
+class UserCompanyAccess(BaseModel):
+    company_id: uuid.UUID
+    company_name: str
+    role: str = "member"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class AdminUserRead(BaseModel):
     id: uuid.UUID
     email: str
@@ -12,6 +20,8 @@ class AdminUserRead(BaseModel):
     is_superuser: bool
     is_verified: bool
     preferences: Optional[dict] = None
+    company_ids: list[uuid.UUID] = []
+    companies: list[UserCompanyAccess] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,6 +32,8 @@ class AdminUserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=72)
     is_superuser: bool = False
     preferences: Optional[dict] = None
+    company_ids: Optional[list[uuid.UUID]] = None
+    company_roles: Optional[dict[str, str]] = None
 
 
 class AdminUserUpdate(BaseModel):
@@ -31,6 +43,8 @@ class AdminUserUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_superuser: Optional[bool] = None
     preferences: Optional[dict] = None
+    company_ids: Optional[list[uuid.UUID]] = None
+    company_roles: Optional[dict[str, str]] = None
 
 
 class AdminUserList(BaseModel):
