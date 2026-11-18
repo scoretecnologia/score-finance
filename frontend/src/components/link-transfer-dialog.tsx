@@ -33,7 +33,7 @@ type CounterpartCardProps = {
 function CounterpartCard({ label, description, account, date, amount, currency, sign, locale }: CounterpartCardProps) {
   const colorClass = sign === '+' ? 'text-emerald-600' : 'text-rose-500'
   return (
-    <div className="rounded-lg border border-border bg-muted/30 p-3">
+    <div className="rounded-lg border border-border bg-muted/30 p-3 min-w-0 overflow-hidden">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">
         {label}
       </p>
@@ -263,34 +263,34 @@ export function LinkTransferDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t('transactions.linkTransferTitle')}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           <p className="text-sm text-muted-foreground">
             {t('transactions.linkTransferDescription')}
           </p>
 
-          <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-stretch gap-3 min-w-0">
             <CounterpartCard
               label={t('transactions.linkTransferFrom')}
               description={effectiveDebit.description}
-              account={fromAccount?.name ?? '—'}
+              account={fromAccount ? getAccountName(fromAccount) : '—'}
               date={effectiveDebit.date}
               amount={debitAmount}
               currency={effectiveDebit.currency}
               sign="−"
               locale={locale}
             />
-            <div className="flex items-center">
-              <ArrowRight size={18} className="text-muted-foreground" />
+            <div className="hidden sm:flex items-center">
+              <ArrowRight size={18} className="text-muted-foreground shrink-0" />
             </div>
             <CounterpartCard
               label={t('transactions.linkTransferTo')}
               description={effectiveCredit.description}
-              account={toAccount?.name ?? '—'}
+              account={toAccount ? getAccountName(toAccount) : '—'}
               date={effectiveCredit.date}
               amount={creditAmount}
               currency={effectiveCredit.currency}
