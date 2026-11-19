@@ -19,7 +19,7 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -139,7 +139,11 @@ async def list_my_companies(
     db: AsyncSession = Depends(get_async_session),
 ) -> list[Company]:
     if current_user.is_superuser:
-        result = await db.execute(select(Company).where(Company.is_active == True))
+        result = await db.execute(
+            select(Company)
+            .where(Company.is_active == True)
+            .order_by(func.lower(Company.name))
+        )
         companies = result.scalars().all()
         return [
             CompanyOut(
@@ -162,6 +166,7 @@ async def list_my_companies(
                 CompanyMember.accepted_at.is_not(None),
                 Company.is_active == True,
             )
+            .order_by(func.lower(Company.name))
         )
         companies = []
         for company, role in result.all():

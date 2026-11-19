@@ -136,10 +136,12 @@ export function DREMatrix({
     exportDREToCSV(data, visibleRows, months)
   }
 
-  // O drilldown existe apenas no 3o nivel da arvore (conta analitica). Grupos macro (level 0),
-  // categorias (level 1) e subtotais sao apenas agregacoes e nao abrem o modal.
+  // O drilldown existe no 3o nivel da arvore (conta analitica) e tambem na linha
+  // de "Lançamentos sem categoria" (mesmo no nivel 1), permitindo clicar direto no valor.
   const isDrillable = useCallback(
-    (row: DRERow) => !row.is_subtotal && row.level === 2,
+    (row: DRERow) =>
+      !row.is_subtotal &&
+      (row.level === 2 || (row.level === 1 && row.label === 'Lançamentos sem categoria')),
     []
   )
 
@@ -385,7 +387,7 @@ export function DREMatrix({
                             </span>
                           )}
 
-                          <span className={cn('truncate', isSubtotal && 'tracking-wide')}>
+                          <span className={cn('truncate uppercase', isSubtotal && 'tracking-wide')}>
                             {row.label}
                           </span>
                         </div>
@@ -405,7 +407,12 @@ export function DREMatrix({
                           <React.Fragment key={`${row.key}-${m}`}>
                             {/* Valor Numérico Clicável para Drilldown */}
                             <TableCell
-                              onClick={() => canDrill && val !== 0 && handleCellClick(row, m, val)}
+                              onClick={(e) => {
+                                if (canDrill && val !== 0) {
+                                  e.stopPropagation()
+                                  handleCellClick(row, m, val)
+                                }
+                              }}
                               title={
                                 canDrill && val !== 0
                                   ? `Clique para detalhar os lançamentos de "${row.label}" em ${monthLabels[m] || m}`
@@ -472,7 +479,12 @@ export function DREMatrix({
                         return (
                           <React.Fragment key={`${row.key}-total`}>
                             <TableCell
-                              onClick={() => canDrill && totalVal !== 0 && handleCellClick(row, undefined, totalVal)}
+                              onClick={(e) => {
+                                if (canDrill && totalVal !== 0) {
+                                  e.stopPropagation()
+                                  handleCellClick(row, undefined, totalVal)
+                                }
+                              }}
                               title={
                                 canDrill && totalVal !== 0
                                   ? `Clique para detalhar os lançamentos de "${row.label}" no ano todo`

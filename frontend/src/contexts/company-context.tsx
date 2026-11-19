@@ -24,12 +24,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     () => localStorage.getItem(STORAGE_KEY)
   )
 
-  const { data: companiesList = [], isLoading } = useQuery({
+  const { data: rawCompaniesList = [], isLoading } = useQuery({
     queryKey: ['companies'],
     queryFn: companiesApi.list,
     enabled: !!user || !!token,
     staleTime: 1000 * 60 * 5,
   })
+
+  const companiesList = [...rawCompaniesList].sort((a, b) =>
+    a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' })
+  )
 
   // Resolve currentCompany from the list
   const currentCompany = companiesList.find(c => c.id === currentCompanyId) ?? companiesList[0] ?? null

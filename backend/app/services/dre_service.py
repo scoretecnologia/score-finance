@@ -25,6 +25,8 @@ MONTH_ABBRS = {
     7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
 }
 
+UNCATEGORIZED_LABEL = "Lançamentos sem categoria"
+
 
 def _parse_code_to_tuple(code_str: Optional[str]) -> list:
     """Extrai partes numéricas de um código contábil para ordenação sequencial natural."""
@@ -173,8 +175,9 @@ async def get_dre_data(
             Transaction.company_id == company_id,
             func.extract("year", date_expr) == year,
             Transaction.status != "cancelled",
-            # Saldo inicial de conta bancaria nao e resultado: fica fora da DRE
+            # Saldo inicial de conta bancaria e transferencias vinculadas nao sao resultado: ficam fora da DRE
             Transaction.source != "opening_balance",
+            Transaction.transfer_pair_id.is_(None),
         )
     )
 
@@ -234,7 +237,7 @@ async def get_dre_data(
         tree[bucket]["total"] += val
 
         # Categoria
-        cat_name = row.cat_name or row.group_name or "Outros"
+        cat_name = row.cat_name or row.group_name or UNCATEGORIZED_LABEL
         cat_key = f"{bucket}__{cat_name}"
         if cat_name not in tree[bucket]["categories"]:
             tree[bucket]["categories"][cat_name] = {
@@ -252,24 +255,23 @@ async def get_dre_data(
         cat_entry["values"][m_key] += val
         cat_entry["total"] += val
 
-        # Conta Analítica (se houver)
-        if row.chart_name:
-            chart_name = row.chart_name
-            chart_key = f"{cat_key}__{chart_name}"
-            if chart_name not in cat_entry["chart_accounts"]:
-                cat_entry["chart_accounts"][chart_name] = {
-                    "label": chart_name,
-                    "code": row.chart_code,
-                    "key": chart_key,
-                    "values": {m: 0.0 for m in month_keys},
-                    "total": 0.0,
-                }
-            elif not cat_entry["chart_accounts"][chart_name]["code"] and row.chart_code:
-                cat_entry["chart_accounts"][chart_name]["code"] = row.chart_code
+        # Conta Analítica (se não houver, cria entrada "Lançamentos sem categoria" para permitir abrir o 3º nível e drilldown)
+        chart_name = row.chart_name or UNCATEGORIZED_LABEL
+        chart_key = f"{cat_key}__{chart_name}"
+        if chart_name not in cat_entry["chart_accounts"]:
+            cat_entry["chart_accounts"][chart_name] = {
+                "label": chart_name,
+                "code": row.chart_code,
+                "key": chart_key,
+                "values": {m: 0.0 for m in month_keys},
+                "total": 0.0,
+            }
+        elif not cat_entry["chart_accounts"][chart_name]["code"] and row.chart_code:
+            cat_entry["chart_accounts"][chart_name]["code"] = row.chart_code
 
-            chart_entry = cat_entry["chart_accounts"][chart_name]
-            chart_entry["values"][m_key] += val
-            chart_entry["total"] += val
+        chart_entry = cat_entry["chart_accounts"][chart_name]
+        chart_entry["values"][m_key] += val
+        chart_entry["total"] += val
 
     # 6. Montar a lista final plana de DRERow com hierarquia e subtotais
     final_rows: List[DRERow] = []
@@ -505,8 +507,9 @@ async def get_dre_drilldown(
             Transaction.company_id == company_id,
             func.extract("year", date_expr) == year,
             Transaction.status != "cancelled",
-            # Saldo inicial de conta bancaria nao e resultado: fica fora da DRE
+            # Saldo inicial de conta bancaria e transferencias vinculadas nao sao resultado: ficam fora da DRE
             Transaction.source != "opening_balance",
+            Transaction.transfer_pair_id.is_(None),
         )
     )
 
@@ -518,12 +521,17 @@ async def get_dre_drilldown(
 
     # Filtrar por entidade
     if chart_name:
-        stmt = stmt.where(ChartAccount.name == chart_name)
-        if cat_name and cat_name != "Outros":
+        if chart_name in ("Outros", UNCATEGORIZED_LABEL):
+            stmt = stmt.where(ChartAccount.name.is_(None))
+        else:
+            stmt = stmt.where(ChartAccount.name == chart_name)
+        if cat_name and cat_name not in ("Outros", UNCATEGORIZED_LABEL):
             stmt = stmt.where(func.coalesce(Category.name, CategoryGroup.name) == cat_name)
+        elif cat_name in ("Outros", UNCATEGORIZED_LABEL):
+            stmt = stmt.where(func.coalesce(Category.name, CategoryGroup.name).is_(None))
     elif cat_name:
-        if cat_name == "Outros":
-            stmt = stmt.where(Category.name.is_(None))
+        if cat_name in ("Outros", UNCATEGORIZED_LABEL):
+            stmt = stmt.where(func.coalesce(Category.name, CategoryGroup.name).is_(None))
         else:
             stmt = stmt.where(func.coalesce(Category.name, CategoryGroup.name) == cat_name)
 
@@ -532,12 +540,11 @@ async def get_dre_drilldown(
     result = await session.execute(stmt)
     raw_rows = result.all()
 
-    # Se for level 0, filtra pelo bucket
-    if level == 0:
-        raw_rows = [
-            r for r in raw_rows
-            if _classify_bucket(r.group_code, r.group_name, r.category_code, r.category_name, r.chart_code) == bucket
-        ]
+    # Filtra pelo bucket para garantir que apenas lancamentos pertencentes a esse bucket sejam retornados
+    raw_rows = [
+        r for r in raw_rows
+        if _classify_bucket(r.group_code, r.group_name, r.category_code, r.category_name, r.chart_code) == bucket
+    ]
 
     items: List[DRETransactionItem] = []
     total_amount = 0.0
